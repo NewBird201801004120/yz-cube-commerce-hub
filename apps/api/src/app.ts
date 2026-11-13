@@ -3,6 +3,7 @@ import { Module, Controller, Get, Catch, ExceptionFilter, ArgumentsHost, HttpExc
 import { ScheduleModule } from '@nestjs/schedule';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
+import {json} from 'express';
 import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
@@ -30,7 +31,7 @@ export async function createApp(){
   const config=app.get(Config);
   // Only the loopback reverse proxy is trusted to provide the client IP.
   if(process.env.NODE_ENV==='production')app.getHttpAdapter().getInstance().set('trust proxy','loopback');
-  app.use(helmet({contentSecurityPolicy:false}));app.use(cookieParser());
+  app.use(/^\/api\/v1\/development\/shops\/[^/]+\/video\/part$/,json({limit:'6mb'}));app.use(helmet({contentSecurityPolicy:false}));app.use(cookieParser());
   app.use((req:Request,res:Response,next:NextFunction)=>{
     res.setHeader('X-Request-Id',randomUUID());res.setHeader('Cache-Control','no-store');
     // Cookie-authenticated mutations are accepted only from the first-party UI.

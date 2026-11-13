@@ -17,6 +17,7 @@
     "@nestjs/platform-express": "11.2.9",
     "@nestjs/schedule": "^6.1.0",
     "@prisma/client": "6.19.3",
+    "ali-oss": "^6.23.0",
     "cookie-parser": "1.4.7",
     "dotenv": "^17.2.3",
     "helmet": "^8.1.0",
@@ -24,6 +25,7 @@
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
+    "@types/ali-oss": "^6.23.4",
     "@types/cookie-parser": "^1.4.9",
     "@types/express": "^5.0.5",
     "@types/node": "^22.19.0",

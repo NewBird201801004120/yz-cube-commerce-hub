@@ -33,3 +33,14 @@ tbody tr:hover .actions-column{background:#fafaf9}
  .workspace>footer>span:first-child{flex-wrap:wrap;gap:4px;min-width:0}
  .breadcrumb{flex-wrap:wrap;min-width:0}
 }
+
+.video-plan h2{font-size:18px}.video-product{display:flex;gap:18px;align-items:flex-start;margin:16px 0 24px}.video-product img{width:112px;height:112px;object-fit:contain;border:1px solid var(--line);border-radius:6px}.video-product>div{min-width:0}.video-product h3{font:600 14px/1.5 inherit}.video-plan details{margin-top:10px}.video-plan summary,.video-plan-heading summary{cursor:pointer;color:var(--wine)}.video-description{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto}.video-plan-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:20px}.video-fields{display:grid;gap:14px;margin:18px 0}.video-fields label{display:grid;gap:6px;white-space:normal;color:#44403c;font-size:12px;font-weight:600}.video-fields textarea{width:100%;padding:10px;border:1px solid #d6d3d1;border-radius:6px;font:inherit;font-weight:400;resize:vertical}.video-warning{padding:10px 12px;border-radius:6px;background:#fffbeb;color:#92400e}.video-plan>.btn{margin-top:12px}@media(max-width:700px){.video-product{flex-direction:column}.video-plan-heading{align-items:flex-start;flex-direction:column}}
+
+/* Keep the preview outside the table's constrained flex layout. */
+.content>.video-history:has(>.table-scroll){display:block;flex:0 0 auto;min-height:0}
+.content>.video-history>.table-scroll{max-height:320px;overflow:auto;margin-top:16px}
+.video-preview{margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:6px;background:#faf8f5;scroll-margin:16px}
+.video-preview-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.video-preview-heading h3{font-size:14px}
+.video-preview video{display:block;width:min(100%,480px);max-height:min(60vh,480px);margin:auto;background:#171717;border-radius:4px}
+.video-description-blocks p{white-space:pre-wrap;overflow-wrap:anywhere}.video-description-blocks img{display:block;max-width:min(100%,480px);height:auto;margin:10px 0}.video-attributes{margin:16px 0}.video-attributes dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 20px;margin:12px 0}.video-attributes dl>div{display:flex;gap:8px;min-width:0;line-height:1.6}.video-attributes dt{color:var(--muted);flex-shrink:0}.video-attributes dd{margin:0;overflow-wrap:anywhere}

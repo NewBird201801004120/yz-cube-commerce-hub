@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import {randomToken} from './crypto';
 import {TeamShopClient} from './team-client';
+import {VideoController,VideoService} from './tools/short-video/video';
 import type {Request,Response,NextFunction} from 'express';
 @Controller()
 class TeamLocalController {
@@ -21,7 +22,7 @@ class TeamLocalController {
 }
 @Catch()
 class TeamErrors implements ExceptionFilter{catch(e:unknown,h:ArgumentsHost){h.switchToHttp().getResponse<Response>().status(e instanceof HttpException?e.getStatus():502).json({message:e instanceof HttpException?e.message:'无法连接团队服务，请检查网络后重试'});}}
-@Module({controllers:[TeamLocalController],providers:[TeamShopClient]})
+@Module({controllers:[TeamLocalController,VideoController],providers:[TeamShopClient,VideoService]})
 class TeamLocalModule{}
 export async function createTeamApp(){
  const app=await NestFactory.create(TeamLocalModule,{logger:['error','warn']});app.use(helmet({contentSecurityPolicy:false}));app.use(cookieParser());

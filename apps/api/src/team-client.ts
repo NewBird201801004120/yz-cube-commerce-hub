@@ -7,7 +7,7 @@ export class TeamShopClient {
  constructor(){const u=new URL(this.origin);if(u.protocol!=='https:'&&!(process.env.NODE_ENV==='test'&&u.hostname==='127.0.0.1'))throw Error('Team API requires HTTPS');if(u.username||u.password||u.search||u.hash||u.pathname!=='/')throw Error('Team API must be an origin');this.origin=u.origin;}
  get managementOrigin(){return this.origin;}
  async request(path:string,token?:string,body?:unknown){
-  const res=await fetch(`${this.origin}/api/v1/development${path}`,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(25000),redirect:'error'});
+  const res=await fetch(`${this.origin}/api/v1/development${path}`,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(40000),redirect:'error'});
   const data=await res.json();if(!res.ok){const {HttpException}=await import('@nestjs/common');throw new HttpException({message:data.message||'团队服务请求失败'},res.status);}return data;
  }
  async login(email:string,password:string,id:string){
@@ -20,5 +20,7 @@ export class TeamShopClient {
  me(id:string){return this.request('/me',this.token(id));}
  shops(id:string){return this.request('/shops',this.token(id));}
  read(id:string,connectionId:string,operation:string,query:Record<string,string>={}){return this.request(`/shops/${encodeURIComponent(connectionId)}/read/${encodeURIComponent(operation)}?${new URLSearchParams(query)}`,this.token(id));}
+ videoCapabilities(id:string){return this.request('/video-capabilities',this.token(id));}
+ video(id:string,connectionId:string,operation:string,body:unknown){return this.request(`/shops/${encodeURIComponent(connectionId)}/video/${encodeURIComponent(operation)}`,this.token(id),body);}
  async logout(id:string){try{await this.request('/logout',this.token(id),{});}finally{this.sessions.delete(id);}}
 }
