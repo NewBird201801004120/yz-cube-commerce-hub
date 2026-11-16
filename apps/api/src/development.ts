@@ -31,7 +31,7 @@ export class DevelopmentController {
  @Get('shops') @UseGuards(DevelopmentGuard) async list(@Req() req:AuthRequest){
   return this.db.shopConnection.findMany({select:{id:true,shopId:true,shopName:true,region:true,status:true},orderBy:{authorizedAt:'desc'}});
  }
- @Get('video-capabilities') @UseGuards(DevelopmentGuard) videoCapabilities(){return {version:1};}
+ @Get('video-capabilities') @UseGuards(DevelopmentGuard) videoCapabilities(){return {version:2};}
  @Post('shops/:id/video/:operation') @UseGuards(DevelopmentGuard)
  async video(@Param('id') id:string,@Param('operation') operation:string,@Body() b:Record<string,unknown>,@Req() req:AuthRequest){
   const ops:VideoOperation[]=['init','part','complete','result','update'];if(!ops.includes(operation as VideoOperation)||!b||typeof b!=='object'||Array.isArray(b))throw new BadRequestException('请求无效');
@@ -50,10 +50,11 @@ export class DevelopmentController {
    input={video_upload_id:uploadId,part_seq_list:b.part_seq_list,report_data:{upload_cost:Math.max(0,Math.min(3600000,Number(b.upload_cost)||0))}};
   }else if(op==='result')input={video_upload_id:uploadId};
   else {
-   if(typeof b.item_id!=='string'||!/^\d{1,15}$/.test(b.item_id)||!Number.isSafeInteger(Number(b.item_id))||!Array.isArray(b.expected_video_info))throw new BadRequestException('商品或视频核对信息无效');
+   const unknown=b.expected_video_info===null&&b.unknown_video_acknowledged===true;
+   if(typeof b.item_id!=='string'||!/^\d{1,15}$/.test(b.item_id)||!Number.isSafeInteger(Number(b.item_id))||(!Array.isArray(b.expected_video_info)&&!unknown))throw new BadRequestException('商品或视频核对信息无效');
    const current=await this.shops.read(id,req.userId,'/api/v2/product/get_item_base_info',{item_id_list:b.item_id}) as {item_list?:Array<{item_id:number;video_info?:unknown}>};
    const item=current.item_list?.find(i=>String(i.item_id)===b.item_id);
-   if(!item||!Array.isArray(item.video_info)||JSON.stringify(item.video_info)!==JSON.stringify(b.expected_video_info))throw new BadRequestException('商品视频信息已变化或不可确认，请重新核对');
+   if(!item||(unknown?Object.hasOwn(item,'video_info'):!Array.isArray(item.video_info)||JSON.stringify(item.video_info)!==JSON.stringify(b.expected_video_info)))throw new BadRequestException('商品视频信息已变化或不可确认，请重新核对');
    const result=await this.shops.video(id,req.userId,'result',{video_upload_id:uploadId}) as {status?:string};if(result.status!=='SUCCEEDED')throw new BadRequestException('视频尚未完成转码');
    input={item_id:Number(b.item_id),video_upload_id:[uploadId]};
   }

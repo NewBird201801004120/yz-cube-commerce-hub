@@ -3,7 +3,7 @@ import { Module, Controller, Get, Catch, ExceptionFilter, ArgumentsHost, HttpExc
 import { ScheduleModule } from '@nestjs/schedule';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
-import {json} from 'express';
+import type {NestExpressApplication} from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
@@ -27,11 +27,12 @@ class ErrorFilter implements ExceptionFilter {
 @Module({imports:[ScheduleModule.forRoot()],controllers:[HealthController,AuthController,ShopsController,DevelopmentController],providers:[Config,Database,Auth,AdminGuard,ShopeeClient,Shops,DevelopmentGuard]})
 export class AppModule {}
 export async function createApp(){
-  const app=await NestFactory.create(AppModule,{logger:['error','warn']});
+  const app=await NestFactory.create<NestExpressApplication>(AppModule,{logger:['error','warn']});
   const config=app.get(Config);
   // Only the loopback reverse proxy is trusted to provide the client IP.
   if(process.env.NODE_ENV==='production')app.getHttpAdapter().getInstance().set('trust proxy','loopback');
-  app.use(/^\/api\/v1\/development\/shops\/[^/]+\/video\/part$/,json({limit:'6mb'}));app.use(helmet({contentSecurityPolicy:false}));app.use(cookieParser());
+  // Nginx limits ordinary requests to 1 MB and permits 6 MB only for video parts.
+  app.useBodyParser('json',{limit:'6mb'});app.use(helmet({contentSecurityPolicy:false}));app.use(cookieParser());
   app.use((req:Request,res:Response,next:NextFunction)=>{
     res.setHeader('X-Request-Id',randomUUID());res.setHeader('Cache-Control','no-store');
     // Cookie-authenticated mutations are accepted only from the first-party UI.

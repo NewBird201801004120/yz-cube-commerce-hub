@@ -25,3 +25,11 @@ test('gateway accepts a full 4 MB part and calculates its checksum',async()=>{
  await controller.video('shop','part',{video_upload_id:'ph_test',part_seq:0,data},{userId:'owner'} as AuthRequest);
  assert.equal(sent?.content_md5,'b5cfa9d6c8febd618f91ac2843d50a1c');assert.equal(sent?.data,data);
 });
+
+test('unknown video status requires acknowledgement and a still-missing field before update',async()=>{
+ let writes=0;let item:Record<string,unknown>={item_id:123};const shops={read:async()=>({item_list:[item]}),video:async(_id:string,_actor:string,op:string,input:Record<string,unknown>)=>{if(op==='result')return {status:'SUCCEEDED'};writes++;assert.deepEqual(input,{item_id:123,video_upload_id:['ph_test']});return {};},audit:async()=>{}} as unknown as Shops;
+ const controller=new DevelopmentController({} as never,{} as never,shops);const req={userId:'owner'} as AuthRequest;
+ await assert.rejects(controller.video('shop','update',{item_id:'123',video_upload_id:'ph_test',expected_video_info:null},req));assert.equal(writes,0);
+ item={item_id:123,video_info:[{video_url:'new'}]};await assert.rejects(controller.video('shop','update',{item_id:'123',video_upload_id:'ph_test',expected_video_info:null,unknown_video_acknowledged:true},req));assert.equal(writes,0);
+ item={item_id:123};await controller.video('shop','update',{item_id:'123',video_upload_id:'ph_test',expected_video_info:null,unknown_video_acknowledged:true},req);assert.equal(writes,1);
+});

@@ -7,14 +7,18 @@ import OSS from 'ali-oss';
 import {TeamShopClient} from '../../team-client';
 import {productDescriptionText, type ProductDescription} from './product-description';
 
-type Publication={status:string; uploadId?:string; expected:unknown[]; urls?:string[]; error?:string};
+type Publication={status:string; failureKind?:'TRANSCODING'|'VIDEO_INVALID'; uploadId?:string; expected:unknown[]|null; urls?:string[]; error?:string};
 type Job = {publication?:Publication; id:string; owner:string; shopId:string; itemId:string; itemName:string; createdAt:string; status:string; prompt?:string; taskId?:string; objectKey?:string; error?:string};
 const store = resolve(process.cwd(), '.local/short-video-jobs.json');
+export function recoverInterruptedPublication(publication:Publication){
+ if(publication.status==='UPLOADING'){publication.status='UNKNOWN';publication.error='上传中断，结果待确认，请勿重复上传';}
+ else if(publication.status==='APPLYING'){publication.status='VERIFY_PENDING';publication.error='关联中断，结果待确认，请先核验商品，勿重复提交';}
+}
 @Injectable()
 export class VideoService implements OnModuleInit {
  private jobs:Job[]=[]; private running=new Set<string>(); private writes=Promise.resolve();
  constructor(private team:TeamShopClient){}
- async onModuleInit(){try{this.jobs=JSON.parse(await readFile(store,'utf8'));}catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT') throw e;} for(const job of this.jobs) {if(job.publication&&['UPLOADING','APPLYING'].includes(job.publication.status)){job.publication.status='UNKNOWN';job.publication.error='服务中断，操作结果待确认，请勿重复提交';}} for(const job of this.jobs) if(job.status==='SUBMITTING'){job.status='SUBMISSION_UNKNOWN';job.error='提交结果未确认，请先检查百炼任务记录，避免重复计费';} await this.save(); setInterval(()=>{for(const job of this.jobs) if(['PENDING','RUNNING','SAVING'].includes(job.status)) void this.advance(job);},15000).unref();}
+ async onModuleInit(){try{this.jobs=JSON.parse(await readFile(store,'utf8'));}catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT') throw e;} for(const job of this.jobs) if(job.publication)recoverInterruptedPublication(job.publication); for(const job of this.jobs) if(job.status==='SUBMITTING'){job.status='SUBMISSION_UNKNOWN';job.error='提交结果未确认，请先检查百炼任务记录，避免重复计费';} await this.save(); setInterval(()=>{for(const job of this.jobs) if(['PENDING','RUNNING','SAVING'].includes(job.status)) void this.advance(job);},15000).unref();}
  private async save(){this.writes=this.writes.catch(()=>{}).then(async()=>{await mkdir(resolve(process.cwd(),'.local'),{recursive:true,mode:0o700});const tmp=store+'.tmp';await writeFile(tmp,JSON.stringify(this.jobs,null,2),{mode:0o600});await rename(tmp,store);});return this.writes;}
  private config(){const {DASHSCOPE_API_KEY, WAN_WORKSPACE_ID, WAN_REGION, OSS_REGION, OSS_BUCKET, OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET}=process.env;if(!DASHSCOPE_API_KEY||!WAN_WORKSPACE_ID||!WAN_REGION||!OSS_REGION||!OSS_BUCKET||!OSS_ACCESS_KEY_ID||!OSS_ACCESS_KEY_SECRET)throw new ServiceUnavailableException('请先在 .env.team 配置百炼和 OSS，详见短视频开发说明');if(!/^[a-z0-9-]+$/.test(WAN_WORKSPACE_ID)||!['cn-beijing','ap-southeast-1','ap-northeast-1','eu-central-1','us-east-1','cn-hongkong'].includes(WAN_REGION))throw new ServiceUnavailableException('百炼工作空间或地域配置无效');return {key:DASHSCOPE_API_KEY,base:`https://${WAN_WORKSPACE_ID}.${WAN_REGION}.maas.aliyuncs.com/api/v1`,oss:new OSS({region:OSS_REGION,bucket:OSS_BUCKET,accessKeyId:OSS_ACCESS_KEY_ID,accessKeySecret:OSS_ACCESS_KEY_SECRET,secure:true,authorizationV4:true})};}
  private async user(req:Request){const u=await this.team.me(req.cookies?.yz_team) as {email:string};return u.email;}
@@ -62,20 +66,22 @@ export class VideoService implements OnModuleInit {
   }else if(['PENDING','RUNNING'].includes(out.task_status)){job.status=out.task_status;job.error=undefined;}else throw Error('未知任务状态');await this.save();}catch{job.error='查询或保存暂时失败，系统会自动重试';await this.save();}finally{this.running.delete(job.id);}}
  async preview(req:Request,id:string){const owner=await this.user(req);const j=this.jobs.find(x=>x.id===id&&x.owner===owner);if(!j||j.status!=='READY'||!j.objectKey)throw new BadRequestException('视频尚不可预览');const {oss}=this.config();return {url:await oss.signatureUrlV4('GET',3600,{},j.objectKey)};}
  private ownedReady(owner:string,id:string){const j=this.jobs.find(x=>x.id===id&&x.owner===owner);if(!j||j.status!=='READY'||!j.objectKey)throw new BadRequestException('视频尚不可配置');return j;}
- async upload(req:Request,id:string,b:{expected?:unknown}){
+ async upload(req:Request,id:string,b:{expected?:unknown;unknownAcknowledged?:unknown},retry=false){
   const owner=await this.user(req),job=this.ownedReady(owner,id);
-  if(job.publication)throw new BadRequestException('该任务已有上传记录，请先核对状态');
-  if(!Array.isArray(b?.expected))throw new BadRequestException('请重新核对商品视频');
-  const target=await this.target(req,id);if(!target.videoInfoReturned||!Array.isArray(target.videoInfo)||JSON.stringify(target.videoInfo)!==JSON.stringify(b.expected))throw new BadRequestException('商品视频信息已变化或不可确认，请重新核对');
-  try{const capabilities=await this.team.videoCapabilities(req.cookies?.yz_team) as {version?:number};if(capabilities.version!==1)throw Error('unsupported');}catch{throw new ServiceUnavailableException('团队中台尚未接入视频配置接口，请先部署相应版本');}
-  if(job.publication)throw new BadRequestException('该任务已有上传记录，请先核对状态');
-  job.publication={status:'UPLOADING',expected:b.expected};await this.save();
+  const previous=job.publication;
+  if(retry ? previous?.status!=='FAILED'||previous.failureKind!=='TRANSCODING' : !!previous)throw new BadRequestException('该任务已有上传记录或当前状态不支持重试，请先核对状态');
+  const unknown=b?.expected===null&&b.unknownAcknowledged===true;
+  if(!Array.isArray(b?.expected)&&!unknown)throw new BadRequestException('请重新核对商品视频');
+  const target=await this.target(req,id);if(unknown?target.videoInfoReturned:!target.videoInfoReturned||!Array.isArray(target.videoInfo)||JSON.stringify(target.videoInfo)!==JSON.stringify(b.expected))throw new BadRequestException('商品视频信息已变化或不可确认，请重新核对');
+  try{const capabilities=await this.team.videoCapabilities(req.cookies?.yz_team) as {version?:number};if(typeof capabilities.version!=='number'||capabilities.version<(unknown?2:1))throw Error('unsupported');}catch{throw new ServiceUnavailableException('团队中台尚未接入所需的视频配置接口，请先部署相应版本');}
+  if(job.publication!==previous||(retry&&previous?.status!=='FAILED'))throw new BadRequestException('该任务状态已变化，请重新核对');
+  job.publication={status:'UPLOADING',expected:unknown?null:b.expected as unknown[]};await this.save();
   void this.uploadVideo(job,req.cookies?.yz_team);return this.publicJob(job);
  }
  private async uploadVideo(job:Job,session:string){
   const p=job.publication!;try{
    const {oss}=this.config();const object=await oss.get(job.objectKey!);const video=object.content;
-   if(!Buffer.isBuffer(video)||!video.length||video.length>30*1024*1024){p.status='FAILED';p.error='视频超过 Shopee 30 MB 限制或无法读取';await this.save();return;}
+   if(!Buffer.isBuffer(video)||!video.length||video.length>30*1024*1024){p.status='FAILED';p.failureKind='VIDEO_INVALID';p.error='视频超过 Shopee 30 MB 限制或无法读取';await this.save();return;}
    const start=Date.now(),md5=createHash('md5').update(video).digest('hex');
    const init=await this.team.video(session,job.shopId,'init',{file_size:video.length,file_md5:md5}) as {video_upload_id?:string};
    if(typeof init.video_upload_id!=='string'||!init.video_upload_id)throw Error('初始化结果未知');p.uploadId=init.video_upload_id;await this.save();
@@ -86,22 +92,24 @@ export class VideoService implements OnModuleInit {
  async publicationStatus(req:Request,id:string){
   const owner=await this.user(req),job=this.ownedReady(owner,id),p=job.publication;if(!p?.uploadId||!['TRANSCODING','TRANSCODED','UNKNOWN'].includes(p.status))throw new BadRequestException('当前状态无法查询转码');
   const result=await this.team.video(req.cookies?.yz_team,job.shopId,'result',{video_upload_id:p.uploadId}) as {status?:string;video_info?:{video_url_list?:Array<{video_url?:string}>};message?:string};
+  if(job.publication!==p||!['TRANSCODING','TRANSCODED','UNKNOWN'].includes(p.status))return this.publicJob(job);
   if(result.status==='SUCCEEDED'){p.urls=(result.video_info?.video_url_list||[]).flatMap(x=>typeof x.video_url==='string'?[x.video_url]:[]);p.status='TRANSCODED';p.error=undefined;}
-  else if(result.status==='FAILED'||result.status==='CANCELLED'){p.status='FAILED';p.error='Shopee 视频处理未完成';}
+  else if(result.status==='FAILED'||result.status==='CANCELLED'){p.status='FAILED';p.failureKind='TRANSCODING';p.error='Shopee 视频处理失败或已取消，可重新核对后上传';}
   await this.save();return this.publicJob(job);
  }
  async apply(req:Request,id:string){
   const owner=await this.user(req),job=this.ownedReady(owner,id),p=job.publication;if(!p||p.status!=='TRANSCODED'||!p.uploadId)throw new BadRequestException('视频尚未完成转码');
   p.status='APPLYING';await this.save();
-  try{await this.team.video(req.cookies?.yz_team,job.shopId,'update',{item_id:job.itemId,video_upload_id:p.uploadId,expected_video_info:p.expected});p.status='VERIFY_PENDING';await this.save();}
+  try{await this.team.video(req.cookies?.yz_team,job.shopId,'update',{item_id:job.itemId,video_upload_id:p.uploadId,expected_video_info:p.expected,...(p.expected===null?{unknown_video_acknowledged:true}:{})});p.status='VERIFY_PENDING';await this.save();}
   catch(e){if(e instanceof BadRequestException || (typeof e==='object'&&e!==null&&'getStatus' in e&&typeof e.getStatus==='function'&&e.getStatus()===400)){p.status='REVIEW_REQUIRED';p.error='商品信息或转码状态发生变化，请重新核对';await this.save();return this.publicJob(job);}p.status='VERIFY_PENDING';p.error='提交结果未确认，请先核验商品，勿重复提交';await this.save();}
   return this.verifyPublication(req,id);
  }
- async reconfirm(req:Request,id:string,b:{expected?:unknown}){
+ async reconfirm(req:Request,id:string,b:{expected?:unknown;unknownAcknowledged?:unknown}){
   const owner=await this.user(req),job=this.ownedReady(owner,id),p=job.publication;
-  if(!p||p.status!=='REVIEW_REQUIRED'||!Array.isArray(b?.expected))throw new BadRequestException('请重新核对商品视频');
-  const target=await this.target(req,id);if(!target.videoInfoReturned||!Array.isArray(target.videoInfo)||JSON.stringify(target.videoInfo)!==JSON.stringify(b.expected))throw new BadRequestException('商品视频信息已变化或不可确认，请重新核对');
-  if(p.status!=='REVIEW_REQUIRED')throw new BadRequestException('当前状态已变化，请刷新');p.expected=b.expected;p.status='TRANSCODED';p.error=undefined;await this.save();return this.publicJob(job);
+  const unknown=b?.expected===null&&b.unknownAcknowledged===true;
+  if(!p||p.status!=='REVIEW_REQUIRED'||(!Array.isArray(b?.expected)&&!unknown))throw new BadRequestException('请重新核对商品视频');
+  const target=await this.target(req,id);if(unknown?target.videoInfoReturned:!target.videoInfoReturned||!Array.isArray(target.videoInfo)||JSON.stringify(target.videoInfo)!==JSON.stringify(b.expected))throw new BadRequestException('商品视频信息已变化或不可确认，请重新核对');
+  if(p.status!=='REVIEW_REQUIRED')throw new BadRequestException('当前状态已变化，请刷新');p.expected=unknown?null:b.expected as unknown[];p.status='TRANSCODED';p.error=undefined;await this.save();return this.publicJob(job);
  }
  async verifyPublication(req:Request,id:string){
   const owner=await this.user(req),job=this.ownedReady(owner,id),p=job.publication;if(!p||!['VERIFY_PENDING','APPLIED'].includes(p.status))throw new BadRequestException('当前状态无法核验');
@@ -118,4 +126,4 @@ export class VideoService implements OnModuleInit {
  }
 }
 @Controller('tools/short-video')
-export class VideoController {constructor(private video:VideoService){} @Get('jobs') list(@Req() r:Request){return this.video.list(r);} @Post('analyze') analyze(@Req() r:Request,@Body() b:{shopId?:unknown;itemId?:unknown}){return this.video.analyze(r,b);} @Post('jobs') create(@Req() r:Request,@Body() b:{shopId?:unknown;itemId?:unknown;prompt?:unknown}){return this.video.create(r,b);} @Get('jobs/:id/preview') preview(@Req() r:Request,@Param('id') id:string){return this.video.preview(r,id);} @Post('jobs/:id/upload') upload(@Req() r:Request,@Param('id') id:string,@Body() b:{expected?:unknown}){return this.video.upload(r,id,b);} @Post('jobs/:id/publication-status') publicationStatus(@Req() r:Request,@Param('id') id:string){return this.video.publicationStatus(r,id);} @Post('jobs/:id/apply') apply(@Req() r:Request,@Param('id') id:string){return this.video.apply(r,id);} @Post('jobs/:id/reconfirm') reconfirm(@Req() r:Request,@Param('id') id:string,@Body() b:{expected?:unknown}){return this.video.reconfirm(r,id,b);} @Post('jobs/:id/verify') verify(@Req() r:Request,@Param('id') id:string){return this.video.verifyPublication(r,id);} @Get('jobs/:id/target') target(@Req() r:Request,@Param('id') id:string){return this.video.target(r,id);}}
+export class VideoController {constructor(private video:VideoService){} @Get('jobs') list(@Req() r:Request){return this.video.list(r);} @Post('analyze') analyze(@Req() r:Request,@Body() b:{shopId?:unknown;itemId?:unknown}){return this.video.analyze(r,b);} @Post('jobs') create(@Req() r:Request,@Body() b:{shopId?:unknown;itemId?:unknown;prompt?:unknown}){return this.video.create(r,b);} @Get('jobs/:id/preview') preview(@Req() r:Request,@Param('id') id:string){return this.video.preview(r,id);} @Post('jobs/:id/upload') upload(@Req() r:Request,@Param('id') id:string,@Body() b:{expected?:unknown}){return this.video.upload(r,id,b);} @Post('jobs/:id/retry-upload') retryUpload(@Req() r:Request,@Param('id') id:string,@Body() b:{expected?:unknown}){return this.video.upload(r,id,b,true);} @Post('jobs/:id/publication-status') publicationStatus(@Req() r:Request,@Param('id') id:string){return this.video.publicationStatus(r,id);} @Post('jobs/:id/apply') apply(@Req() r:Request,@Param('id') id:string){return this.video.apply(r,id);} @Post('jobs/:id/reconfirm') reconfirm(@Req() r:Request,@Param('id') id:string,@Body() b:{expected?:unknown}){return this.video.reconfirm(r,id,b);} @Post('jobs/:id/verify') verify(@Req() r:Request,@Param('id') id:string){return this.video.verifyPublication(r,id);} @Get('jobs/:id/target') target(@Req() r:Request,@Param('id') id:string){return this.video.target(r,id);}}

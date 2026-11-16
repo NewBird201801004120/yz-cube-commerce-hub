@@ -129,3 +129,31 @@ test('an uncertain upload with an ID can be checked without submitting another u
  const service=new VideoService(team);const internal=service as unknown as {jobs:unknown[];save:()=>Promise<void>};internal.jobs=[{id:'job',owner:'owner@example.test',shopId:'shop',itemId:'123',itemName:'Product',status:'READY',objectKey:'video.mp4',publication:{status:'UNKNOWN',uploadId:'ph_video',expected:[]}}];internal.save=async()=>{};
  assert.equal((await service.publicationStatus({cookies:{yz_team:'session'}} as unknown as Request,'job')).publication?.status,'TRANSCODED');
 });
+
+test('only an explicitly failed transcode permits a reviewed retry',async()=>{
+ let calls=0;const team={me:async()=>({email:'owner@example.test'}),read:async()=>({item_list:[{item_id:123,video_info:[]}]}),videoCapabilities:async()=>({version:1}),video:async(_session:string,_shop:string,op:string)=>{calls++;if(op==='result')return {status:'FAILED'};if(op==='init')return {video_upload_id:'new_id'};return {};}} as unknown as TeamShopClient;
+ const service=new VideoService(team);const internal=service as unknown as {jobs:Array<{publication:{status:string;failureKind?:string}}>;config:()=>unknown;save:()=>Promise<void>};internal.jobs=[{id:'job',owner:'owner@example.test',shopId:'shop',itemId:'123',itemName:'Product',status:'READY',objectKey:'video.mp4',publication:{status:'TRANSCODING',uploadId:'old_id',expected:[]}} as never];internal.config=()=>({oss:{get:async()=>({content:Buffer.from('video')})}});internal.save=async()=>{};
+ const req={cookies:{yz_team:'session'}} as unknown as Request;
+ await assert.rejects(service.upload(req,'job',{expected:[]},true),/不支持/);await service.publicationStatus(req,'job');assert.equal(internal.jobs[0].publication.failureKind,'TRANSCODING');
+ await service.upload(req,'job',{expected:[]},true);for(let i=0;i<50&&internal.jobs[0].publication.status==='UPLOADING';i++)await new Promise(r=>setTimeout(r,5));assert.equal(internal.jobs[0].publication.status,'TRANSCODING');assert.equal(calls,4);
+});
+
+test('interrupted association resumes in verification, not upload recovery',()=>{
+ const {recoverInterruptedPublication}=require('../src/tools/short-video/video') as typeof import('../src/tools/short-video/video');
+ const applying={status:'APPLYING',expected:[]};recoverInterruptedPublication(applying);assert.equal(applying.status,'VERIFY_PENDING');
+ const uploading={status:'UPLOADING',expected:[]};recoverInterruptedPublication(uploading);assert.equal(uploading.status,'UNKNOWN');
+});
+
+test('a delayed status response cannot undo an association in progress',async()=>{
+ let release!:(v:unknown)=>void;const result=new Promise(resolve=>{release=resolve;});
+ const team={me:async()=>({email:'owner@example.test'}),video:async()=>result} as unknown as TeamShopClient;
+ const service=new VideoService(team);const internal=service as unknown as {jobs:Array<{publication:{status:string}}>;save:()=>Promise<void>};internal.jobs=[{id:'job',owner:'owner@example.test',shopId:'shop',itemId:'123',itemName:'Product',status:'READY',objectKey:'video.mp4',publication:{status:'TRANSCODED',uploadId:'id',expected:[]}} as never];internal.save=async()=>{};
+ const req={cookies:{yz_team:'session'}} as unknown as Request;const pending=service.publicationStatus(req,'job');await new Promise(r=>setImmediate(r));internal.jobs[0].publication.status='APPLYING';release({status:'SUCCEEDED',video_info:{video_url_list:[]}});await pending;assert.equal(internal.jobs[0].publication.status,'APPLYING');
+});
+
+test('missing video field requires explicit acknowledgement and a compatible gateway',async()=>{
+ let init=0;const team={videoCapabilities:async()=>({version:2}),me:async()=>({email:'owner@example.test'}),read:async()=>({item_list:[{item_id:123}]}),video:async(_s:string,_shop:string,op:string)=>{if(op==='init'){init++;return {video_upload_id:'ph_test'};}return {};}} as unknown as TeamShopClient;
+ const service=new VideoService(team);const internal=service as unknown as {jobs:unknown[];config:()=>unknown;save:()=>Promise<void>};internal.jobs=[{id:'job',owner:'owner@example.test',shopId:'shop',itemId:'123',itemName:'Product',status:'READY',objectKey:'video.mp4'}];internal.config=()=>({oss:{get:async()=>({content:Buffer.from('video')})}});internal.save=async()=>{};const req={cookies:{yz_team:'session'}} as unknown as Request;
+ await assert.rejects(service.upload(req,'job',{expected:null}),/核对/);assert.equal(init,0);const created=await service.upload(req,'job',{expected:null,unknownAcknowledged:true});assert.equal(created.publication?.expected,null);
+ for(let i=0;i<50&&(await service.list(req))[0].publication?.status==='UPLOADING';i++)await new Promise(r=>setTimeout(r,5));assert.equal(init,1);
+});
