@@ -1,0 +1,22 @@
+[Unit]
+Description=YZ Cube Localization Review Console
+After=network.target
+
+[Service]
+Type=simple
+User=yz-hub
+Group=yz-hub
+WorkingDirectory=/opt/yz-commerce/localization-integration/current/console
+EnvironmentFile=/etc/yz-commerce/app.env
+Environment=PATH=/opt/yz-commerce/runtime/node-v22.22.2-linux-x64/bin:/usr/bin:/bin
+ExecStart=/opt/yz-commerce/runtime/node-v22.22.2-linux-x64/bin/node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3110
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

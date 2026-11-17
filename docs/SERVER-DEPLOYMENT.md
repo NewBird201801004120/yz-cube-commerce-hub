@@ -1,4 +1,55 @@
+# 2026-11-17 完整商品接收校验更新
+
+当前本地化版本为`20261117-required-fields-02`，回滚版本为`20261117-adaptation-01`；核心网关仍为`20261117-category-gateway-01`。仅替换localization-integration.js与localization-integration-main.js，2个文件SHA-256检查通过，仅重启本地化API。
+
+公开接口缺售价、库存、重量、尺寸及多项缺失5组请求均返回400和fieldErrors；完整资料、零库存且省略类目能通过完整性检查，复用已存在requestId返回409，未覆盖既有数据。原接收记录GET仍返回200。前后imports=4、sources=3、drafts=4、tasks=0一致，未产生记录、草稿或商品写入。
+
+114项测试、typecheck、build、verify:baseline、Diff Gate通过。外部文档与独立及内嵌JSON Schema已同步标明必填；这是有意收紧接收契约，不再接受不完整资料作为新接收记录。详细证据为output/localization/REQUIRED-FIELDS-VERIFICATION-20261117.json，服务端部署记录为/var/lib/yz-commerce/localization-required-deploy-20261117.json。
+
+---
+
+# 2026-11-17 本地化自动适配修复部署
+
+当前本地化运行版本为`/opt/yz-commerce/localization-integration/releases/20261117-adaptation-01`；中央API运行版本为`/opt/yz-commerce/releases/20261117-category-gateway-01`。本地化包344个文件SHA-256核对通过，保留线上Listing模块；中央API仅修改已运行development.js的属性类目参数校验与归一化，保留视频及其他已部署逻辑。没有数据库迁移、凭据变更或Nginx规则变更。
+
+重启yz-commerce-api、yz-commerce-localization-integration、yz-commerce-localization-console后均active。公网真实属性查询、专用Bearer店铺查询、既有接收请求幂等重放及状态查询通过；真实英文草稿自动适配得到101226/NoBrand/物流4000，缺价格库存和包装尺寸按预期阻止发布。未写入Shopee商品。
+
+回滚点：核心`/opt/yz-commerce/releases/20261115-video-unknown-v2`；本地化`/opt/yz-commerce/localization-integration/releases/20261117-integration-receipts-02`。将对应current符号链接原子切回并重启上述服务；配置和数据目录保持原样。部署记录`/var/lib/yz-commerce/localization-deploy-20261117.json`。
+
+---
+
 # 中台服务器部署
+
+## 2026-11-13：仿真平台接入与本地化审核
+
+四个机器接口已部署并用专用Bearer在公网验证。完整四SKU mock仅导入中台，真实AI文案生成后状态为awaiting_review；同请求重放返回相同记录和草稿，内容冲突返回409，服务重启后草稿与接收记录可恢复。本次没有创建、发布或修改Shopee商品。
+
+- 独立版本：`/opt/yz-commerce/localization-integration/releases/20261117-integration-receipts-02`，运行链接：`/opt/yz-commerce/localization-integration/current`。基础版本662个文件及本次5个路由/控制器热修文件均通过SHA-256核对。
+- API：`yz-commerce-localization-integration`，127.0.0.1:4111。提供`/api/v1/localization/`和管理员AI配置接口`/api/v1/settings/ai`；机器Bearer不授权管理员草稿操作或发布。没有注册Listing生成任务接口。
+- 本地团队登录会话使用的开发接口`/api/v1/development/localization/imports`及文案重试也转发到4111，并由共享数据库中的DEV会话验证。4110未上架保存测试通道仅接收`/shops/`操作和`/health`；其余本地化开发API不再被该前缀截走。
+- 审核页面：`yz-commerce-localization-console`，127.0.0.1:3110。Nginx仅将`/tools/localization`、`/settings/ai`转发到此服务，复用原中台管理员登录Cookie与数据库。
+- 接入配置：`/etc/yz-commerce/localization-integrations.json`，root:yz-hub/0640，仅保存令牌摘要。已启用simulation来源和全部已连接店铺范围，生产沿用本次专用令牌。
+- 环境文件：`/etc/yz-commerce/localization-integration.env`，root:yz-hub/0640；复用原`app.env`。草稿和接收记录在`/var/lib/yz-commerce/localization`；本项目既有AI配置的加密文件及解密密钥在`/var/lib/yz-commerce/localization-ai`，目录yz-hub/0700、文件0600。未复制个人项目配置或本地Listing任务。
+- Nginx include：`/etc/nginx/snippets/yz-localization-integration.conf`。`/_next/static/`使用新版本`web-assets`内原核心与新审核页面的静态资源并集；实测两套页面引用的16项资源全部200。
+- 浏览器已验证真实导入记录、生成文案、目标店铺和四SKU草稿。原站点仍沿用原核心构建；Listing组图入口尚未部署，审核页面对该入口的预取会404；既有favicon也404，不影响本次接入和草稿审核。
+- 原核心API/Web及4110保存服务继续运行；原核心PID185084/185486未变化。本次仅重载Nginx和新增两个独立服务。
+- 公网证据：`output/localization/INTEGRATION-PUBLIC-20261113.json`；审核截图：`output/localization/INTEGRATION-PRODUCTION-REVIEW-20261113.png`。接口交付文档：`docs/LOCALIZATION-INTEGRATION.md`；原始Bearer单独私密交付，不写入此文档。
+
+恢复时，仅移除站点中的`include /etc/nginx/snippets/yz-localization-integration.conf;`，执行`nginx -t`后reload，再停用上述两个新增服务；保留数据及配置。首次变更前站点副本为`/etc/nginx/sites-available/yz-commerce-aicbec.before-localization-integration-20261113`，恢复前先核对后续其他变更，不直接覆盖整份站点文件。勿停原API、Web或4110保存服务。
+
+## 2026-11-13：独立未上架保存验证通道
+
+用户授权部署最小保存接口，并允许使用mock商品；未授权真实发布。新增 `yz-commerce-localization-save`，以yz-hub运行，监听127.0.0.1:4110；仅路由 `/api/v1/development/localization/` 到该服务。原中台API和Web未重启，原current链接及两份systemd配置保持原样；实际主服务目录核验为 `/opt/yz-commerce/releases/20261111-responsive-01`。
+
+- 保存服务运行链接：`/opt/yz-commerce/localization-save/current`，当前指向 `releases/20261113-save-only-03`；01、02版保留作恢复点。03版增加受限save_variations，完整双规格4SKU商品50821595037已保存并回读UNLIST；核心API/Web未重启。
+- 仅13个编译后端模块，复用现有服务器依赖；没有发布前端或ListingService。依赖链接是服务独享目录，未修改原node_modules。
+- 服务配置：`/etc/systemd/system/yz-commerce-localization-save.service`；复用既有服务端环境文件，追加非密钥配置 `/etc/yz-commerce/localization-save.env`，限定连接 `cmwbzd7ls0009nd5por0hoswv`。
+- 持久目录：`/var/lib/yz-commerce/localization-save-test`，yz-hub/0700；保留创建标记、远端ID与状态。
+- Nginx仅增加include `/etc/nginx/snippets/yz-localization-save-only.conf`，原站点备份在 `/etc/nginx/sites-available/yz-commerce-aicbec.before-localization-save-20261113`；nginx -t后reload，原API/Web进程继续运行。
+- 真实结果：Home Monitor_PH（618217104）测试商品44671691020，UNLIST，PHP10，库存0，主图1张。complete与publish的真实HTTP请求均被403拒绝，未执行平台发布。
+- 该通道使用既有管理员DEV会话鉴权，不是仿真专用Bearer接口。机器导入接口与此前生成的专用令牌未因此上线或启用。
+
+停用此测试通道时，可恢复上述站点备份，执行nginx -t并reload，再停用 `yz-commerce-localization-save`。保留该服务数据目录及已创建的未上架商品，不自动删除。不得将此恢复操作扩大到原中台或其他站点。
 
 ## 当前部署（2026-11-11）
 

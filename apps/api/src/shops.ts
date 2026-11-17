@@ -73,7 +73,7 @@ export class Shops {
       await this.audit(actor,'TOKEN_REFRESH',id,error);return {ok:false,error};
     }
   }
-  async read(id:string,actor:string,path:string,query:Record<string,string>) {
+  async read(id:string,actor:string,path:string,query:Record<string,string>,body?:object|FormData) {
     let c=await this.db.shopConnection.findUnique({where:{id}});
     if(!c)throw new NotFoundException('店铺连接不存在');
     if(c.status==='REAUTH_REQUIRED')throw new ConflictException('店铺需要管理员重新授权');
@@ -88,8 +88,10 @@ export class Shops {
     }
     const app=this.config.getApp(c.appId);
     if(!app||app.environment!==c.environment||String(app.partnerId)!==c.partnerId)throw new BadRequestException('App配置身份不匹配');
-    return this.client.read(app,path,decrypt(c.accessTokenCipher,this.config.encryptionKey),c.shopId,query);
+    const token=decrypt(c.accessTokenCipher,this.config.encryptionKey);
+    return body===undefined?this.client.read(app,path,token,c.shopId,query):this.client.write(app,path,token,c.shopId,body);
   }
+  write(id:string,actor:string,path:string,body:object|FormData){return this.read(id,actor,path,{},body);}
   @Interval(60000)
   async tick() {
     const due=await this.db.shopConnection.findMany({where:{status:{not:'REAUTH_REQUIRED'},accessExpiresAt:{lt:new Date(Date.now()+15*60000)},OR:[{refreshLeaseUntil:null},{refreshLeaseUntil:{lt:new Date()}}]},select:{id:true},take:20});

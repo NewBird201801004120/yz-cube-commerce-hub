@@ -1,0 +1,25 @@
+[Unit]
+Description=YZ Cube isolated UNLIST save verification
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=yz-hub
+Group=yz-hub
+WorkingDirectory=/opt/yz-commerce/localization-save/current
+EnvironmentFile=/etc/yz-commerce/app.env
+EnvironmentFile=/etc/yz-commerce/localization-save.env
+Environment=PATH=/opt/yz-commerce/runtime/node-v22.22.2-linux-x64/bin:/usr/bin:/bin
+ExecStart=/opt/yz-commerce/runtime/node-v22.22.2-linux-x64/bin/node dist/localization-save-main.js
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/yz-commerce/localization-save-test
+
+[Install]
+WantedBy=multi-user.target

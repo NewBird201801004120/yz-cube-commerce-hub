@@ -1,0 +1,25 @@
+[Unit]
+Description=YZ Cube Localization Integration API
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=yz-hub
+Group=yz-hub
+WorkingDirectory=/opt/yz-commerce/localization-integration/current/api
+EnvironmentFile=/etc/yz-commerce/app.env
+EnvironmentFile=/etc/yz-commerce/localization-integration.env
+Environment=PATH=/opt/yz-commerce/runtime/node-v22.22.2-linux-x64/bin:/usr/bin:/bin
+ExecStart=/opt/yz-commerce/runtime/node-v22.22.2-linux-x64/bin/node dist/localization-integration-main.js
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/yz-commerce
+
+[Install]
+WantedBy=multi-user.target

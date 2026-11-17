@@ -1,9 +1,10 @@
-import {Injectable,CanActivate,ExecutionContext,UnauthorizedException,ForbiddenException,BadRequestException,Controller,Get,Post,Body,Req,Param,UseGuards,Query} from '@nestjs/common';
+import {Injectable,CanActivate,ExecutionContext,UnauthorizedException,ForbiddenException,BadRequestException,Controller,Get,Post,Body,Req,Param,UseGuards,Query,BadGatewayException} from '@nestjs/common';
 import type {Request} from 'express';
 import {Database} from './database';
 import {Auth,AuthRequest} from './auth';
 import {hash} from './crypto';
 import {Shops} from './shops';
+import {PlatformError} from './shopee-client';
 @Injectable()
 export class DevelopmentGuard implements CanActivate {
  constructor(private db:Database,private auth:Auth){}
@@ -32,12 +33,12 @@ export class DevelopmentController {
  @Get('shops/:id/read/:operation') @UseGuards(DevelopmentGuard)
  async read(@Param('id') id:string,@Param('operation') operation:string,@Query() q:Record<string,unknown>,@Req() req:AuthRequest){
   // Only read methods are exposed. Caller cannot supply a URL, signature or token.
-  const allowed:Record<string,string[]>={get_item_list:['offset','page_size','item_status'],get_item_base_info:['item_id_list'],get_model_list:['item_id'],get_category:['language'],get_attribute_tree:['category_id','language'],get_brand_list:['offset','page_size','category_id','status'],get_item_limit:[],get_channel_list:[]};
+  const allowed:Record<string,string[]>={get_item_list:['offset','page_size','item_status'],get_item_base_info:['item_id_list'],get_model_list:['item_id'],get_shop_info:[],get_category:['language'],get_attributes:['category_id','category_id_list','language'],get_attribute_tree:['category_id','category_id_list','language'],get_brand_list:['offset','page_size','category_id','status'],get_item_limit:[],get_channel_list:[]};
   if(!Object.hasOwn(allowed,operation))throw new BadRequestException('此接口未开放；写入接口需随工具另行接入');
   const query:Record<string,string>={};
   for(const [k,v] of Object.entries(q)){
    if(!allowed[operation].includes(k)||typeof v!=='string'||v.length>1000)throw new BadRequestException('不支持的查询参数');
-   if(['offset','page_size','category_id','item_id'].includes(k)&&(!/^\d{1,15}$/.test(v)||Number(v)>Number.MAX_SAFE_INTEGER))throw new BadRequestException('数字参数无效');
+   if(['offset','page_size','category_id','category_id_list','item_id','status'].includes(k)&&(!/^\d{1,15}$/.test(v)||Number(v)>Number.MAX_SAFE_INTEGER))throw new BadRequestException('数字参数无效；属性查询一次仅支持一个类目');
    query[k]=v;
   }
   if(query.page_size&&(Number(query.page_size)<1||Number(query.page_size)>100))throw new BadRequestException('每页需1—100条');
@@ -47,11 +48,15 @@ export class DevelopmentController {
   }
   if(operation==='get_item_base_info'&&(!query.item_id_list||!/^\d{1,15}(,\d{1,15}){0,49}$/.test(query.item_id_list)))throw new BadRequestException('需1—50个商品ID');
   if(operation==='get_model_list'&&!query.item_id)throw new BadRequestException('需要商品ID');
-  if(['get_attribute_tree','get_brand_list'].includes(operation)&&!query.category_id)throw new BadRequestException('需要类目ID');
+  const attributeOperation=operation==='get_attributes'||operation==='get_attribute_tree';
+  if(attributeOperation){if(query.category_id&&query.category_id_list)throw new BadRequestException('请只提供一种类目ID参数');const categoryId=query.category_id_list||query.category_id;if(!categoryId||Number(categoryId)<=0)throw new BadRequestException('需要类目ID');query.category_id_list=categoryId;delete query.category_id;}
+  if(operation==='get_brand_list'){if(!query.category_id||Number(query.category_id)<=0)throw new BadRequestException('需要类目ID');query.offset||='0';query.page_size||='100';query.status||='1';}
   const now=Date.now(),rate=this.rates.get(req.userId);if(!rate||now-rate.start>60000)this.rates.set(req.userId,{start:now,count:1});else if(++rate.count>60)throw new ForbiddenException('调用过于频繁，请稍后重试');
   if(this.rates.size>10000)for(const [k,v] of this.rates)if(now-v.start>60000)this.rates.delete(k);
-  const path=`/api/v2/${operation==='get_channel_list'?'logistics':'product'}/${operation}`;
+  // The legacy get_attributes operation remains an alias for the current attribute-tree API.
+  const upstreamOperation=attributeOperation?'get_attribute_tree':operation;
+  const path=`/api/v2/${operation==='get_channel_list'?'logistics':operation==='get_shop_info'?'shop':'product'}/${upstreamOperation}`;
   try{const result=await this.shops.read(id,req.userId,path,query);await this.shops.audit(req.userId,'DEV_READ',`${id}:${operation}`,'SUCCESS');return result;}
-  catch(e){await this.shops.audit(req.userId,'DEV_READ',`${id}:${operation}`,'FAILED');throw e;}
+  catch(e){await this.shops.audit(req.userId,'DEV_READ',`${id}:${operation}`,'FAILED');if(e instanceof PlatformError)throw new BadGatewayException({code:e.code,message:'平台读取未完成，请检查连接状态或联系管理员',diagnostic:e.diagnostic});throw e;}
  }
 }

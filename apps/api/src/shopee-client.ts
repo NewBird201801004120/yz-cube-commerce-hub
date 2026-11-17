@@ -1,8 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
 import type { ShopeeApp } from './config';
+export type PlatformDiagnostic={upstreamCode:string;upstreamRequestId?:string};
+const diagnosticCodes=new Set(['api_suspended','product.error_param','error_param','error_params','error_permission','error_auth','error_token','error_access_token','error_sign','error_not_found','error_unknown','error_server','error_api','invalid_param','invalid_parameter','invalid_access_token','invalid_refresh_token','invalid_code','invalid_token','invalid_permission','access_denied','permission_denied','shop_not_authorized','common.error_param','common.error_permission','common.error_auth','common.error_token','common.error_sign','common.error_server','common.error_not_found']);
+/** Deliberately exclude upstream messages, URLs, body fragments and arbitrary error strings. */
+export function safePlatformDiagnostic(value:unknown):PlatformDiagnostic|undefined {
+  if(!value||typeof value!=='object'||Array.isArray(value))return undefined;
+  const v=value as Record<string,unknown>,upstreamCode=typeof v.upstreamCode==='string'&&diagnosticCodes.has(v.upstreamCode.toLowerCase())?v.upstreamCode.toLowerCase():'unknown';
+  const id=v.upstreamRequestId;
+  return {upstreamCode,...(typeof id==='string'&&(/^[a-f0-9]{16,64}$/i.test(id)||/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id))?{upstreamRequestId:id}:{})};
+}
 export class PlatformError extends Error {
-  constructor(public readonly code: 'TOKEN_INVALID' | 'PERMISSION_DENIED' | 'PLATFORM_UNAVAILABLE' | 'INVALID_RESPONSE') { super(code); }
+  readonly diagnostic?:PlatformDiagnostic;
+  constructor(public readonly code: 'TOKEN_INVALID' | 'PERMISSION_DENIED' | 'PLATFORM_UNAVAILABLE' | 'INVALID_RESPONSE',diagnostic?:unknown) { super(code);this.diagnostic=safePlatformDiagnostic(diagnostic); }
+}
+/** A platform rejection is definitive; transport/malformed-response failures are ambiguous for writes. */
+export class PlatformWriteError extends Error {
+  readonly diagnostic?:PlatformDiagnostic;
+  constructor(public readonly uncertain:boolean,public readonly reason:string,diagnostic?:unknown){super(reason);this.diagnostic=safePlatformDiagnostic(diagnostic);}
 }
 export function signature(app: ShopeeApp, path: string, timestamp: number, accessToken = '', shopId = '') {
   return createHmac('sha256', app.partnerKey).update(`${app.partnerId}${path}${timestamp}${accessToken}${shopId}`).digest('hex');
@@ -21,19 +36,34 @@ export class ShopeeClient {
     try {response=await fetch(u,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000),redirect:'error'});} catch {throw new PlatformError('PLATFORM_UNAVAILABLE');}
     let data: Record<string,unknown>;
     try {data=await response.json() as Record<string,unknown>;}catch{throw new PlatformError('INVALID_RESPONSE');}
-    if(!response.ok) throw new PlatformError('PLATFORM_UNAVAILABLE');
+    if(!data||typeof data!=='object'||Array.isArray(data))throw new PlatformError('INVALID_RESPONSE');
+    const diagnostic=safePlatformDiagnostic({upstreamCode:data.error,upstreamRequestId:data.request_id===token||data.request_id===app.partnerKey?undefined:data.request_id});
     if(data.error) {
-      const code=String(data.error).toLowerCase();
-      if(/token|auth|code|shop_not_authorized/.test(code))throw new PlatformError('TOKEN_INVALID');
-      if(/permission|scope|access_denied/.test(code))throw new PlatformError('PERMISSION_DENIED');
-      throw new PlatformError('PLATFORM_UNAVAILABLE');
+      const code=typeof data.error==='string'?data.error.toLowerCase():'';
+      if(/permission|scope|access_denied/.test(code))throw new PlatformError('PERMISSION_DENIED',diagnostic);
+      if(/token|auth|shop_not_authorized/.test(code)||code==='invalid_code')throw new PlatformError('TOKEN_INVALID',diagnostic);
+      throw new PlatformError('PLATFORM_UNAVAILABLE',diagnostic);
     }
+    if(!response.ok) throw new PlatformError('PLATFORM_UNAVAILABLE',diagnostic);
     return data;
   }
   async read(app:ShopeeApp,path:string,token:string,shopId:string,query:Record<string,string>) {
     const data=await this.request(app,path,undefined,token,shopId,query);
+    if(path==='/api/v2/shop/get_shop_info'){const info=data.response&&typeof data.response==='object'?data.response as Record<string,unknown>:data;return {shop_id:info.shop_id,shop_name:info.shop_name,region:info.region,is_cb:typeof info.is_cb==='boolean'?info.is_cb:undefined};}
     if(!data.response || typeof data.response!=='object')throw new PlatformError('INVALID_RESPONSE');
     return data.response;
+  }
+  async write(app:ShopeeApp,path:string,token:string,shopId:string,body:object|FormData){
+    const ts=Math.floor(Date.now()/1000),u=new URL(path,app.baseUrl);
+    u.search=new URLSearchParams({partner_id:String(app.partnerId),timestamp:String(ts),sign:signature(app,path,ts,token,shopId),access_token:token,shop_id:shopId}).toString();
+    let res:Response;
+    try{res=await fetch(u,{method:'POST',headers:body instanceof FormData?{}:{'Content-Type':'application/json'},body:body instanceof FormData?body:JSON.stringify(body),signal:AbortSignal.timeout(20000),redirect:'error'});}catch{throw new PlatformWriteError(true,'平台请求超时或连接中断，需先核对远端结果');}
+    let data:Record<string,unknown>;try{data=await res.json() as Record<string,unknown>;}catch{throw new PlatformWriteError(true,'平台未返回可识别结果，需先核对远端结果');}
+    if(!data||typeof data!=='object'||Array.isArray(data))throw new PlatformWriteError(true,'平台未返回可识别结果，需先核对远端结果');
+    const diagnostic=safePlatformDiagnostic({upstreamCode:data.error,upstreamRequestId:data.request_id===token||data.request_id===app.partnerKey?undefined:data.request_id});
+    if(data.error)throw new PlatformWriteError(false,'平台拒绝本次操作，请核对商品资料、店铺资格及应用权限',diagnostic);
+    if(!res.ok||!data.response||typeof data.response!=='object'||Array.isArray(data.response))throw new PlatformWriteError(true,'平台结果不明确，需先核对远端结果',diagnostic);
+    return data.response as Record<string,unknown>;
   }
   private tokens(data: Record<string,unknown>): Tokens {
     if(typeof data.access_token!=='string'||!data.access_token||typeof data.refresh_token!=='string'||!data.refresh_token||typeof data.expire_in!=='number'||!Number.isFinite(data.expire_in)||data.expire_in<=0)throw new PlatformError('INVALID_RESPONSE');
