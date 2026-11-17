@@ -5,6 +5,8 @@ import {Auth,AuthRequest} from './auth';
 import {hash} from './crypto';
 import {Shops} from './shops';
 import {PlatformError} from './shopee-client';
+import {createHash} from 'node:crypto';
+import type {VideoOperation} from './shopee-client';
 @Injectable()
 export class DevelopmentGuard implements CanActivate {
  constructor(private db:Database,private auth:Auth){}
@@ -29,6 +31,36 @@ export class DevelopmentController {
  @Post('logout') @UseGuards(DevelopmentGuard) async logout(@Req() req:AuthRequest){await this.db.session.deleteMany({where:{id:req.sessionId}});return {ok:true};}
  @Get('shops') @UseGuards(DevelopmentGuard) async list(@Req() req:AuthRequest){
   return this.db.shopConnection.findMany({select:{id:true,shopId:true,shopName:true,region:true,status:true},orderBy:{authorizedAt:'desc'}});
+ }
+ @Get('video-capabilities') @UseGuards(DevelopmentGuard) videoCapabilities(){return {version:2};}
+ @Post('shops/:id/video/:operation') @UseGuards(DevelopmentGuard)
+ async video(@Param('id') id:string,@Param('operation') operation:string,@Body() b:Record<string,unknown>,@Req() req:AuthRequest){
+  const ops:VideoOperation[]=['init','part','complete','result','update'];if(!ops.includes(operation as VideoOperation)||!b||typeof b!=='object'||Array.isArray(b))throw new BadRequestException('请求无效');
+  const op=operation as VideoOperation;const uploadId=b.video_upload_id;
+  if(op!=='init'&&(typeof uploadId!=='string'||!/^[a-zA-Z0-9_-]{1,160}$/.test(uploadId)))throw new BadRequestException('视频上传 ID 无效');
+  let input:Record<string,unknown>;
+  if(op==='init'){
+   if(!Number.isInteger(b.file_size)||Number(b.file_size)<1||Number(b.file_size)>30*1024*1024||typeof b.file_md5!=='string'||!/^[a-f0-9]{32}$/.test(b.file_md5))throw new BadRequestException('视频大小或校验值无效');
+   input={file_size:b.file_size,file_md5:b.file_md5};
+  }else if(op==='part'){
+   if(!Number.isInteger(b.part_seq)||Number(b.part_seq)<0||Number(b.part_seq)>100||typeof b.data!=='string'||b.data.length>5600000||b.data.length%4!==0||/[^A-Za-z0-9+/=]/.test(b.data))throw new BadRequestException('视频分片无效');
+   const bytes=Buffer.from(b.data,'base64');if(!bytes.length||bytes.length>4*1024*1024||bytes.toString('base64')!==b.data)throw new BadRequestException('视频分片大小无效');
+   input={video_upload_id:uploadId,part_seq:b.part_seq,content_md5:createHash('md5').update(bytes).digest('hex'),data:b.data};
+  }else if(op==='complete'){
+   if(!Array.isArray(b.part_seq_list)||!b.part_seq_list.length||b.part_seq_list.length>8||b.part_seq_list.some((n,i)=>n!==i))throw new BadRequestException('分片序号无效');
+   input={video_upload_id:uploadId,part_seq_list:b.part_seq_list,report_data:{upload_cost:Math.max(0,Math.min(3600000,Number(b.upload_cost)||0))}};
+  }else if(op==='result')input={video_upload_id:uploadId};
+  else {
+   const unknown=b.expected_video_info===null&&b.unknown_video_acknowledged===true;
+   if(typeof b.item_id!=='string'||!/^\d{1,15}$/.test(b.item_id)||!Number.isSafeInteger(Number(b.item_id))||(!Array.isArray(b.expected_video_info)&&!unknown))throw new BadRequestException('商品或视频核对信息无效');
+   const current=await this.shops.read(id,req.userId,'/api/v2/product/get_item_base_info',{item_id_list:b.item_id}) as {item_list?:Array<{item_id:number;video_info?:unknown}>};
+   const item=current.item_list?.find(i=>String(i.item_id)===b.item_id);
+   if(!item||(unknown?Object.hasOwn(item,'video_info'):!Array.isArray(item.video_info)||JSON.stringify(item.video_info)!==JSON.stringify(b.expected_video_info)))throw new BadRequestException('商品视频信息已变化或不可确认，请重新核对');
+   const result=await this.shops.video(id,req.userId,'result',{video_upload_id:uploadId}) as {status?:string};if(result.status!=='SUCCEEDED')throw new BadRequestException('视频尚未完成转码');
+   input={item_id:Number(b.item_id),video_upload_id:[uploadId]};
+  }
+  try {const result=await this.shops.video(id,req.userId,op,input);await this.shops.audit(req.userId,'DEV_VIDEO_'+op.toUpperCase(),id,'SUCCESS');return result;}
+  catch(e){await this.shops.audit(req.userId,'DEV_VIDEO_'+op.toUpperCase(),id,'FAILED_OR_UNKNOWN');throw e;}
  }
  @Get('shops/:id/read/:operation') @UseGuards(DevelopmentGuard)
  async read(@Param('id') id:string,@Param('operation') operation:string,@Query() q:Record<string,unknown>,@Req() req:AuthRequest){

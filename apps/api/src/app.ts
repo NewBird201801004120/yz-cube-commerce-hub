@@ -9,6 +9,7 @@ import { Module, Controller, Get, Catch, ExceptionFilter, ArgumentsHost, HttpExc
 import { ScheduleModule } from '@nestjs/schedule';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
+import type {NestExpressApplication} from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
@@ -33,10 +34,11 @@ class ErrorFilter implements ExceptionFilter {
 @Module({imports:[ScheduleModule.forRoot()],controllers:[LocalizationReceiptsController,LocalizationReceiptsDevelopmentController,HealthController,AuthController,ShopsController,DevelopmentController,ListingController,LocalizationController,LocalizationDevelopmentController,LocalizationIntegrationController],providers:[Config,Database,Auth,AdminGuard,ShopeeClient,Shops,DevelopmentGuard,ListingService,ListingGuard,LocalizationService,LocalizationGuard,LocalizationPlatform,LocalizationIntegrationService,LocalizationIntegrationGuard]})
 export class AppModule {}
 export async function createApp(){
-  const app=await NestFactory.create(AppModule,{logger:['error','warn']});
+  const app=await NestFactory.create<NestExpressApplication>(AppModule,{logger:['error','warn'],bodyParser:false});
   const config=app.get(Config);
   // Only the loopback reverse proxy is trusted to provide the client IP.
   if(process.env.NODE_ENV==='production')app.getHttpAdapter().getInstance().set('trust proxy','loopback');
+  app.use('/api/v1/development/shops/:id/video/part',json({limit:'6mb'}));
   app.use('/api/v1/listing/jobs',json({limit:'30mb'}));app.use('/api/v1/localization',json({limit:'12mb'}));app.use('/api/v1/development/localization',json({limit:'12mb'}));app.use(json({limit:'100kb'}));app.use(helmet({contentSecurityPolicy:false}));app.use(cookieParser());
   app.use((req:Request,res:Response,next:NextFunction)=>{
     res.setHeader('X-Request-Id',randomUUID());res.setHeader('Cache-Control','no-store');

@@ -22,6 +22,7 @@ export class PlatformWriteError extends Error {
 export function signature(app: ShopeeApp, path: string, timestamp: number, accessToken = '', shopId = '') {
   return createHmac('sha256', app.partnerKey).update(`${app.partnerId}${path}${timestamp}${accessToken}${shopId}`).digest('hex');
 }
+export type VideoOperation = 'init'|'part'|'complete'|'result'|'update';
 export type Tokens = { access_token: string; refresh_token: string; expire_in: number; shop_id_list?: number[] };
 @Injectable()
 export class ShopeeClient {
@@ -64,6 +65,22 @@ export class ShopeeClient {
     if(data.error)throw new PlatformWriteError(false,'平台拒绝本次操作，请核对商品资料、店铺资格及应用权限',diagnostic);
     if(!res.ok||!data.response||typeof data.response!=='object'||Array.isArray(data.response))throw new PlatformWriteError(true,'平台结果不明确，需先核对远端结果',diagnostic);
     return data.response as Record<string,unknown>;
+  }
+  async video(app:ShopeeApp,token:string,shopId:string,operation:VideoOperation,input:Record<string,unknown>) {
+    const names:Record<VideoOperation,string>={init:'media_space/init_video_upload',part:'media_space/upload_video_part',complete:'media_space/complete_video_upload',result:'media_space/get_video_upload_result',update:'product/update_item'};
+    const path=`/api/v2/${names[operation]}`,ts=Math.floor(Date.now()/1000),u=new URL(path,app.baseUrl);
+    const query:Record<string,string>={partner_id:String(app.partnerId),timestamp:String(ts),sign:signature(app,path,ts,token,shopId),access_token:token,shop_id:shopId};
+    if(operation==='result')query.video_upload_id=String(input.video_upload_id);
+    u.search=new URLSearchParams(query).toString();
+    let body:BodyInit|undefined;const headers:Record<string,string>={};
+    if(operation==='part') {const f=new FormData();f.set('video_upload_id',String(input.video_upload_id));f.set('part_seq',String(input.part_seq));f.set('content_md5',String(input.content_md5));f.set('part_content',new Blob([Buffer.from(String(input.data),'base64')],{type:'video/mp4'}),'part.mp4');body=f;}
+    else if(operation!=='result'){headers['Content-Type']='application/json';body=JSON.stringify(input);}
+    let response:Response;try{response=await fetch(u,{method:operation==='result'?'GET':'POST',headers,body,signal:AbortSignal.timeout(30000),redirect:'error'});}catch{throw new PlatformError('PLATFORM_UNAVAILABLE');}
+    let data:Record<string,unknown>;try{data=await response.json() as Record<string,unknown>;}catch{throw new PlatformError('INVALID_RESPONSE');}
+    if(!response.ok||data.error)throw new PlatformError('PLATFORM_UNAVAILABLE');
+    if((operation==='part'||operation==='complete')&&data.response===undefined)return {};
+    if(!data.response||typeof data.response!=='object')throw new PlatformError('INVALID_RESPONSE');
+    return data.response;
   }
   private tokens(data: Record<string,unknown>): Tokens {
     if(typeof data.access_token!=='string'||!data.access_token||typeof data.refresh_token!=='string'||!data.refresh_token||typeof data.expire_in!=='number'||!Number.isFinite(data.expire_in)||data.expire_in<=0)throw new PlatformError('INVALID_RESPONSE');

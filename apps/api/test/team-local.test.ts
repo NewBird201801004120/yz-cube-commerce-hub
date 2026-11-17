@@ -13,7 +13,7 @@ test('local team gateway hides remote bearer and blocks other hosts/origins and 
   res.end(JSON.stringify(req.url?.endsWith('/me')?{email:'dev@local.test',role:'ADMIN'}:[{id:'assigned-shop'}]));
  });provider.listen(0,'127.0.0.1');await once(provider,'listening');process.env.TEAM_API_ORIGIN=`http://127.0.0.1:${(provider.address() as {port:number}).port}`;
  const app=await createTeamApp();await app.listen(0,'127.0.0.1');const base=await app.getUrl();
- const headers={host:'127.0.0.1:4100',origin:'http://127.0.0.1:3100','Content-Type':'application/json'};
+ const headers={host:new URL(base).host,origin:'http://127.0.0.1:3100','Content-Type':'application/json'};
  try{
   const health=await (await fetch(base+'/api/v1/health',{headers})).json();assert.equal(health.mode,'team-local');assert.equal(health.managementOrigin,process.env.TEAM_API_ORIGIN);assert.ok(!JSON.stringify(health).includes('private-fixture'));
   assert.equal((await fetch(base+'/api/v1/auth/me',{headers})).status,401);assert.equal(remoteCalls,0);

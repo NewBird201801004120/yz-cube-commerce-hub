@@ -5,7 +5,7 @@ import { Database } from './database';
 import { Config } from './config';
 import { AdminGuard, Auth, AuthRequest } from './auth';
 import { hash, randomToken, encrypt, decrypt } from './crypto';
-import { ShopeeClient, PlatformError } from './shopee-client';
+import { ShopeeClient, PlatformError, type VideoOperation } from './shopee-client';
 const safeSelect = { id:true,appId:true,environment:true,shopId:true,shopName:true,region:true,status:true,accessExpiresAt:true,authorizedAt:true,verifiedAt:true,refreshedAt:true,lastError:true,updatedAt:true } as const;
 @Injectable()
 export class Shops {
@@ -73,7 +73,7 @@ export class Shops {
       await this.audit(actor,'TOKEN_REFRESH',id,error);return {ok:false,error};
     }
   }
-  async read(id:string,actor:string,path:string,query:Record<string,string>,body?:object|FormData) {
+  private async connection(id:string,actor:string) {
     let c=await this.db.shopConnection.findUnique({where:{id}});
     if(!c)throw new NotFoundException('店铺连接不存在');
     if(c.status==='REAUTH_REQUIRED')throw new ConflictException('店铺需要管理员重新授权');
@@ -88,10 +88,11 @@ export class Shops {
     }
     const app=this.config.getApp(c.appId);
     if(!app||app.environment!==c.environment||String(app.partnerId)!==c.partnerId)throw new BadRequestException('App配置身份不匹配');
-    const token=decrypt(c.accessTokenCipher,this.config.encryptionKey);
-    return body===undefined?this.client.read(app,path,token,c.shopId,query):this.client.write(app,path,token,c.shopId,body);
+    return {app,token:decrypt(c.accessTokenCipher,this.config.encryptionKey),shopId:c.shopId};
   }
+  async read(id:string,actor:string,path:string,query:Record<string,string>,body?:object|FormData) {const c=await this.connection(id,actor);return body===undefined?this.client.read(c.app,path,c.token,c.shopId,query):this.client.write(c.app,path,c.token,c.shopId,body);}
   write(id:string,actor:string,path:string,body:object|FormData){return this.read(id,actor,path,{},body);}
+  async video(id:string,actor:string,operation:VideoOperation,input:Record<string,unknown>) {const c=await this.connection(id,actor);return this.client.video(c.app,c.token,c.shopId,operation,input);}
   @Interval(60000)
   async tick() {
     const due=await this.db.shopConnection.findMany({where:{status:{not:'REAUTH_REQUIRED'},accessExpiresAt:{lt:new Date(Date.now()+15*60000)},OR:[{refreshLeaseUntil:null},{refreshLeaseUntil:{lt:new Date()}}]},select:{id:true},take:20});

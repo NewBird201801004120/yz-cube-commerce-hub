@@ -62,6 +62,14 @@ test('local authorization lifecycle through real HTTP + PostgreSQL (emulated Sho
   assert.equal((await request('/shops')).status,401);
   assert.equal((await request('/auth/login','POST',{email:process.env.ADMIN_EMAIL,password:'test-password-only'},{origin:'https://attacker.test'})).status,403);
  });
+ await t.test('merged video, listing and localization routes parse large bodies and still require authentication',async()=>{
+  const part={video_upload_id:'fixture',part_seq:0,data:Buffer.alloc(4*1024*1024).toString('base64')};
+  assert.equal((await request('/development/shops/fixture/video/part','POST',part)).status,401);
+  const large={data:'x'.repeat(1024*1024)};
+  assert.equal((await request('/listing/jobs','POST',large)).status,401);
+  assert.equal((await request('/localization/integration/imports','POST',large)).status,401);
+  assert.equal(exchanges,0);assert.equal(refreshes,0);
+ });
  await t.test('login creates HttpOnly session; config never exposes partner key',async()=>{
   const r=await request('/auth/login','POST',{email:process.env.ADMIN_EMAIL,password:'test-password-only'});assert.equal(r.status,201);
   const value=r.headers.get('set-cookie')!;assert.match(value,/HttpOnly/);assert.match(value,/SameSite=Lax/);cookie=value.split(';')[0];
