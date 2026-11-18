@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import type { ShopeeApp } from './config';
 export type PlatformDiagnostic={upstreamCode:string;upstreamRequestId?:string};
-const diagnosticCodes=new Set(['api_suspended','product.error_param','error_param','error_params','error_permission','error_auth','error_token','error_access_token','error_sign','error_not_found','error_unknown','error_server','error_api','invalid_param','invalid_parameter','invalid_access_token','invalid_refresh_token','invalid_code','invalid_token','invalid_permission','access_denied','permission_denied','shop_not_authorized','common.error_param','common.error_permission','common.error_auth','common.error_token','common.error_sign','common.error_server','common.error_not_found']);
+const diagnosticCodes=new Set(['api_suspended','product.error_param','error_param','error_params','error_permission','error_auth','error_token','error_access_token','error_sign','error_not_found','error_unknown','error_server','error_api','invalid_param','invalid_parameter','invalid_access_token','invalid_refresh_token','invalid_code','invalid_token','invalid_permission','access_denied','permission_denied','shop_not_authorized','common.error_param','common.error_permission','common.error_auth','common.error_token','common.error_sign','common.error_server','common.error_not_found','transport_timeout','transport_connection_failed','transport_response_timeout']);
 /** Deliberately exclude upstream messages, URLs, body fragments and arbitrary error strings. */
 export function safePlatformDiagnostic(value:unknown):PlatformDiagnostic|undefined {
   if(!value||typeof value!=='object'||Array.isArray(value))return undefined;
@@ -26,6 +26,8 @@ export type VideoOperation = 'init'|'part'|'complete'|'result'|'update';
 export type Tokens = { access_token: string; refresh_token: string; expire_in: number; shop_id_list?: number[] };
 @Injectable()
 export class ShopeeClient {
+  private categoryCache=new Map<string,{expires:number;value:unknown}>();
+  private categoryPending=new Map<string,Promise<unknown>>();
   authorizationUrl(app: ShopeeApp, redirect: string) {
     const path='/api/v2/shop/auth_partner', ts=Math.floor(Date.now()/1000), u=new URL(path,app.baseUrl);
     u.search=new URLSearchParams({partner_id:String(app.partnerId),timestamp:String(ts),sign:signature(app,path,ts),redirect}).toString();return u.toString();
@@ -34,7 +36,7 @@ export class ShopeeClient {
     const ts=Math.floor(Date.now()/1000),u=new URL(path,app.baseUrl);
     u.search=new URLSearchParams({...query,partner_id:String(app.partnerId),timestamp:String(ts),sign:signature(app,path,ts,token,shopId),...(token?{access_token:token,shop_id:shopId}:{})}).toString();
     let response: Response;
-    try {response=await fetch(u,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000),redirect:'error'});} catch {throw new PlatformError('PLATFORM_UNAVAILABLE');}
+    try {response=await fetch(u,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(!body&&path==='/api/v2/product/get_category'?75000:15000),redirect:'error'});} catch(e) {throw new PlatformError('PLATFORM_UNAVAILABLE',{upstreamCode:e instanceof Error&&e.name==='TimeoutError'?'transport_response_timeout':e instanceof Error&&(e as Error&{cause?:{code?:string}}).cause?.code==='UND_ERR_CONNECT_TIMEOUT'?'transport_timeout':'transport_connection_failed'});}
     let data: Record<string,unknown>;
     try {data=await response.json() as Record<string,unknown>;}catch{throw new PlatformError('INVALID_RESPONSE');}
     if(!data||typeof data!=='object'||Array.isArray(data))throw new PlatformError('INVALID_RESPONSE');
@@ -49,7 +51,18 @@ export class ShopeeClient {
     return data;
   }
   async read(app:ShopeeApp,path:string,token:string,shopId:string,query:Record<string,string>) {
-    const data=await this.request(app,path,undefined,token,shopId,query);
+    // Retry transport failures only for read-only requests; writes retain uncertain-result handling.
+    const load=async()=>{for(let attempt=0;;attempt++){try{return await this.request(app,path,undefined,token,shopId,query);}catch(e){if(attempt||!(e instanceof PlatformError)||!['transport_timeout','transport_connection_failed'].includes(e.diagnostic?.upstreamCode||''))throw e;}}};
+    const category=path==='/api/v2/product/get_category';
+    const key=category?createHash('sha256').update(JSON.stringify([app.id,app.baseUrl,app.partnerId,token,shopId,query])).digest('hex'):'';
+    const cached=category?this.categoryCache.get(key):undefined;
+    let data:Record<string,unknown>;
+    if(cached&&cached.expires>Date.now())data=structuredClone(cached.value) as Record<string,unknown>;
+    else if(category){
+      let pending=this.categoryPending.get(key);
+      if(!pending){pending=load().then(value=>{if(value.response&&typeof value.response==='object'){if(this.categoryCache.size>=100)this.categoryCache.delete(this.categoryCache.keys().next().value!);this.categoryCache.set(key,{expires:Date.now()+300000,value:structuredClone(value)});}return value;}).finally(()=>this.categoryPending.delete(key));this.categoryPending.set(key,pending);}
+      data=structuredClone(await pending) as Record<string,unknown>;
+    }else data=await load();
     if(path==='/api/v2/shop/get_shop_info'){const info=data.response&&typeof data.response==='object'?data.response as Record<string,unknown>:data;return {shop_id:info.shop_id,shop_name:info.shop_name,region:info.region,is_cb:typeof info.is_cb==='boolean'?info.is_cb:undefined};}
     if(!data.response || typeof data.response!=='object')throw new PlatformError('INVALID_RESPONSE');
     return data.response;

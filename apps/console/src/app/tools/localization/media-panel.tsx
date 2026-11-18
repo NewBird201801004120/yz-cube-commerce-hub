@@ -1,5 +1,6 @@
 'use client';
 import {useRef,useState} from 'react';
+import {ProductImage} from '@/components/product-image';
 import {Button} from '@/components/ui/button';
 import {localizationApi} from '@/lib/localization';
 import type {LocalizationMedia,MarketDraft} from '@/lib/localization';
@@ -41,25 +42,25 @@ export default function MediaPanel({draft,onChange,readOnly=false}:Props){
  }
  const variantAssets=media.assets,detailAssets=media.assets.filter(x=>x.role==='detail');
  const preview=<div className={styles.stack}>
-  {media.variantImages.length>0&&<><h3>规格配图预览</h3><div className={styles.images}>{media.variantImages.map(binding=>{const image=asset(binding.assetId);return <div className={styles.image} key={binding.sku}>{image&&safeImage(image.url)?<img src={image.url} alt={`${binding.sku} 规格图片`} referrerPolicy="no-referrer"/>:<p className="error">配图尚未补齐</p>}<span>{binding.sku}</span></div>;})}</div></>}
+  {media.variantImages.length>0&&<><h3>规格配图预览</h3><div className={styles.images}>{media.variantImages.map(binding=>{const image=asset(binding.assetId);return <div className={styles.image} key={binding.sku}>{image&&safeImage(image.url)?<ProductImage src={image.url} alt={`${binding.sku} 规格图片`}/>:<p className="error">配图尚未补齐</p>}<span>{binding.sku}</span></div>;})}</div></>}
   {media.detailBlocks.length>0&&<><h3>商品详情预览</h3><div className={styles.stack}>{media.detailBlocks.map((block,index)=>{if(block.type==='text')return <p key={index} style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{block.text}</p>;const image=asset(block.assetId);return image&&safeImage(image.url)?<img key={index} src={image.url} alt={`商品详情图片 ${index+1}`} referrerPolicy="no-referrer" style={{maxWidth:'100%',height:'auto'}}/>:<p className="error" key={index}>详情图片尚未补齐</p>;})}</div></>}
   {!media.variantImages.length&&!media.detailBlocks.length&&<p className={styles.subtle}>尚未添加规格配图或图文详情。</p>}
  </div>;
  if(readOnly)return <section className={styles.stack}>{preview}</section>;
  return <section className={styles.stack} aria-label="规格配图与图文详情" style={{minWidth:0,maxWidth:'100%',overflowWrap:'anywhere'}}>
   <div className={styles.heading}><h3>规格配图与图文详情</h3></div>
-  <p className={styles.notice}>商品文案翻译不会改变图片里的文字。含文字的图片需按目标市场单独制作，或使用已完成的 Listing 图片替换，再核对语言与真实参数。商品主图和附图仍在上方管理。</p>
+  <p className={styles.notice}>此处管理详情图和规格配图；图片内文字需单独核对。</p>
   {error&&<p className="error" role="alert">{error}</p>}
   <label className={styles.line}><span>上传补充图</span><input className={styles.file} style={{minWidth:0,maxWidth:'100%',width:'100%'}} type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading||media.assets.length>=30} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void uploadImage(file);}}/></label>
-  <p className={styles.subtle}>上传后按下方所选用途保存为详情图或规格配图，不占用上方9张商品展示图名额。支持8 MB以内的 PNG、JPEG、WebP。</p>
+  <p className={styles.subtle}>支持 PNG、JPEG、WebP，单张不超过 8 MB。</p>
   {uploading&&<p className={styles.subtle} role="status">正在上传补充图片…</p>}
   {uploadNotice&&<p className={styles.subtle} role="status">{uploadNotice}</p>}
   <div className={styles.fields}><label><span>补充图片</span><input value={url} onChange={e=>setUrl(e.target.value)} placeholder="公开 HTTPS 图片地址"/></label><label><span>图片用途</span><select value={role} onChange={e=>setRole(e.target.value as 'detail'|'variant')}><option value="detail">详情图</option><option value="variant">规格配图</option></select></label></div>
   <div className={styles.actions}><Button type="button" variant="outline" onClick={addImage} disabled={!url.trim()||media.assets.length>=30}>添加补充图片</Button></div>
   {media.assets.map((image,index)=><div className={styles.job} key={image.id}>
-   <div className={styles.heading}><strong>{image.role==='gallery'?'商品主图 / 附图':image.role==='detail'?'详情图':'规格配图'} {index+1}</strong>{image.role!=='gallery'&&<div className={styles.actions}><Button type="button" variant="outline" onClick={()=>removeImage(image.id)}>移除图片及关联</Button></div>}</div>
+   <div className={styles.heading}><strong>{image.role==='gallery'?'商品主图 / 附图':image.role==='detail'?'详情图':'规格配图'} {index+1}</strong>{image.role!=='gallery'&&<div className={styles.actions}><Button type="button" variant="outline" onClick={()=>removeImage(image.id)}>移除图片</Button></div>}</div>
    {safeImage(image.url)&&<img src={image.url} alt={`补充商品图片 ${index+1}`} referrerPolicy="no-referrer" style={{width:120,maxWidth:'100%',height:120,objectFit:'contain'}}/>}
-   {image.role==='gallery'?<p className={styles.subtle}>此图片属于导入的主图 / 附图，请与上方商品图片保持一致。</p>:<label className={styles.line}><span>目标图片</span><input value={image.url} onChange={e=>updateAsset(image.id,{url:e.target.value})} aria-label={`图片 ${index+1} 目标地址`}/></label>}
+   {image.role==='gallery'?<p className={styles.subtle}>主图与附图在上方管理。</p>:<label className={styles.line}><span>目标图片</span><input value={image.url} onChange={e=>updateAsset(image.id,{url:e.target.value})} aria-label={`图片 ${index+1} 目标地址`}/></label>}
    <div className={styles.fields}><label><span>图中文字</span><select value={image.textInImage} onChange={e=>updateAsset(image.id,{textInImage:e.target.value as typeof image.textInImage})}>{Object.entries(textState).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label><label><span>图片语言</span><input value={image.sourceLanguage||''} maxLength={80} onChange={e=>updateAsset(image.id,{sourceLanguage:e.target.value.trim()?e.target.value:undefined})} placeholder="例如：中文、English"/></label></div>
   </div>)}
   <h3>为每个规格选择图片</h3>

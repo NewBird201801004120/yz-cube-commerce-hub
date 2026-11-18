@@ -40,6 +40,9 @@ export async function localizationImage(url:string):Promise<Buffer>{
 }
 @Injectable()
 export class LocalizationPlatform{
+ private metadataPending=new Map<string,Promise<any>>();
+ private metadataCache=new Map<string,{expires:number;value:any}>();
+ private metadataKey(ctx:LocalizationContext,id:string,categoryId?:number,language='en'){return createHash('sha256').update(JSON.stringify([ctx.owner,ctx.sessionId,ctx.userId,id,categoryId,language])).digest('hex');}
  private dir=resolve(process.env.LOCALIZATION_DATA_DIR||'.local/localization','remote-receipts');private active=new Set<string>();
  constructor(@Optional() private team?:TeamShopClient,@Optional() private db?:Database,@Optional() private shopsService?:Shops){mkdirSync(this.dir,{recursive:true,mode:0o700});}
  async shops(ctx:LocalizationContext):Promise<(LocalizationShop&{status:string;supportedLanguages?:string[]})[]>{if(isLocalLocalizationMode()&&!this.team)return localLocalizationShops.map(s=>({...s}));const rows=this.team?await this.team.shops(ctx.sessionId!):await this.db!.shopConnection.findMany({select:{id:true,shopId:true,shopName:true,region:true,status:true},orderBy:{authorizedAt:'desc'}});return rows.map((s:any)=>({...s,shopName:s.shopName||s.shopId,...markets[s.region],supportedLanguages:supportedLanguages(markets[s.region]?.language||'',s.region)}));}
@@ -68,15 +71,32 @@ export class LocalizationPlatform{
   return {...first,brand_list:[...new Map(brands.map(b=>[b.brand_id,b])).values()],has_next_page:true,candidatesIncomplete:true};
  }
  async rawMetadata(ctx:LocalizationContext,id:string,categoryId?:number,language='en'){
+  const key=this.metadataKey(ctx,id,categoryId,language);let pending=this.metadataPending.get(key);
+  if(!pending){pending=this.fetchRawMetadata(ctx,id,categoryId,language).finally(()=>this.metadataPending.delete(key));this.metadataPending.set(key,pending);}
+  return structuredClone(await pending);
+ }
+ private async fetchRawMetadata(ctx:LocalizationContext,id:string,categoryId?:number,language='en'){
   if(isLocalLocalizationMode()&&localLocalizationShops.some(s=>s.id===id)){return {categories:{category_list:[]},attributes:null,brands:null,logistics:{logistics_channel_list:[]},limits:{},capabilities:await this.capabilities(ctx,id),categoryId:categoryId||null,connectionId:id,fetchedAt:new Date().toISOString()};}
   ctx=await this.metadataContext(ctx);
   const shops=await this.shops(ctx);if(!shops.some(s=>s.id===id&&s.status==='CONNECTED'))throw new ForbiddenException('目标店铺不可用');
-  const [categories,logistics,limits,capabilities]=await Promise.all([this.read(ctx,id,'get_category',{language}),this.read(ctx,id,'get_channel_list'),this.read(ctx,id,'get_item_limit'),this.capabilities(ctx,id).catch(()=>({path:'product',issues:['中央服务尚未开放或未能确认发布资格；可继续准备草稿，暂不能发布'],writePermission:'unverified'}))]);
-  const attributes=categoryId?await this.read(ctx,id,'get_attribute_tree',{[this.team?'category_id':'category_id_list']:String(categoryId),language}):null;
-  const brands=categoryId?await this.allBrands(ctx,id,categoryId):null;return {categories,attributes,brands,logistics,limits,capabilities,categoryId:categoryId||null,connectionId:id,fetchedAt:new Date().toISOString()};
+  // Category-dependent rules do not depend on downloading the entire category tree.
+  // Keep attributes before brand pagination so an attribute failure stops extra requests.
+  const [[categories,logistics,limits,capabilities],{attributes,brands}]=await Promise.all([
+   Promise.all([this.read(ctx,id,'get_category',{language}),this.read(ctx,id,'get_channel_list'),this.read(ctx,id,'get_item_limit'),this.capabilities(ctx,id).catch(()=>({path:'product',issues:['中央服务尚未开放或未能确认发布资格；可继续准备草稿，暂不能发布'],writePermission:'unverified'}))]),
+   (async()=>{const attributes=categoryId?await this.read(ctx,id,'get_attribute_tree',{[this.team?'category_id':'category_id_list']:String(categoryId),language}):null;const brands=categoryId?await this.allBrands(ctx,id,categoryId):null;return {attributes,brands};})()
+  ]);
+  return {categories,attributes,brands,logistics,limits,capabilities,categoryId:categoryId||null,connectionId:id,fetchedAt:new Date().toISOString()};
  }
  async metadata(ctx:LocalizationContext,id:string,categoryId?:number,language='en'){
-  const raw=await this.rawMetadata(ctx,id,categoryId,language);return this.metadataResult(raw,categoryId);
+  // Display cache only. Publishing validation continues to use rawMetadata and current shop rules.
+  const key=this.metadataKey(ctx,id,categoryId,language),cached=this.metadataCache.get(key);
+  if(cached&&cached.expires>Date.now()){
+   ctx=await this.metadataContext(ctx);const shops=await this.shops(ctx);if(!shops.some(s=>s.id===id&&s.status==='CONNECTED'))throw new ForbiddenException('目标店铺不可用');
+   return structuredClone(cached.value);
+  }
+  const raw=await this.rawMetadata(ctx,id,categoryId,language),value=this.metadataResult(raw,categoryId);
+  if(this.metadataCache.size>=100)this.metadataCache.delete(this.metadataCache.keys().next().value!);
+  this.metadataCache.set(key,{expires:Date.now()+300000,value:structuredClone(value)});return value;
  }
  private metadataResult(raw:any,categoryId?:number){const caps=record(raw.capabilities);
   return {...(raw.brands?.candidatesIncomplete?{warnings:['品牌候选较多，本次仅读取前3页；未命中的品牌不能视为目标类目不支持。']}:{ }),categories:(record(raw.categories).category_list||[]).map((x:any)=>({id:x.category_id,name:x.display_category_name||x.original_category_name||String(x.category_id),parentId:x.parent_category_id,hasChildren:x.has_children})),brands:(record(raw.brands).brand_list||[]).map((x:any)=>({id:x.brand_id,name:x.display_brand_name||x.original_brand_name||String(x.brand_id)})),attributes:attributeRows(raw.attributes,categoryId).map((x:any)=>({id:x.attribute_id,name:x.display_attribute_name||x.original_attribute_name||x.attribute_name||String(x.attribute_id),required:!!x.is_mandatory,values:(x.attribute_value_list||[]).map((v:any)=>({id:v.value_id,value:v.display_value_name||v.original_value_name||String(v.value_id)}))})),logistics:(record(raw.logistics).logistics_channel_list||[]).map((x:any)=>({id:x.logistics_channel_id,name:x.logistics_channel_name||String(x.logistics_channel_id),enabled:x.enabled})),limits:raw.limits,capability:{path:caps.path,reason:caps.issues?.join('；')||caps.note},capabilities:caps,fetchedAt:raw.fetchedAt};

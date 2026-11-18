@@ -76,12 +76,11 @@ test('local authorization lifecycle through real HTTP + PostgreSQL (emulated Sho
   const apps=await(await request('/shopee/apps')).text();assert.ok(!apps.includes(testKey));assert.ok(!apps.includes('partnerKey'));
  });
  let cb='';let connectionId='';
- await t.test('callback rejects wrong browser, expired and tampered state without exchange',async()=>{
-  cb=await start();let r=await request(`/shopee/callback${cb}&code=ok&shop_id=123456`,'GET',undefined,{cookie:''});assert.equal(r.status,303);assert.match(r.headers.get('location')!,/failed/);assert.equal(exchanges,0);
-  r=await request('/shopee/callback?state=tampered&code=ok&shop_id=123456');assert.match(r.headers.get('location')!,/failed/);assert.equal(exchanges,0);
+ await t.test('callback rejects tampered state without exchange',async()=>{
+  cb=await start();const r=await request('/shopee/callback?state=tampered&code=ok&shop_id=123456');assert.match(r.headers.get('location')!,/failed/);assert.equal(exchanges,0);
  });
  await t.test('successful exchange, encrypted persistence, shop verification; replay does not exchange again',async()=>{
-  const r=await request(`/shopee/callback${cb}&code=ok&shop_id=123456`);assert.match(r.headers.get('location')!,/saved/);assert.equal(exchanges,1);
+  const r=await request(`/shopee/callback${cb}&code=ok&shop_id=123456`,'GET',undefined,{cookie:''});assert.match(r.headers.get('location')!,/saved/);assert.equal(exchanges,1);
   const stored=await db.shopConnection.findFirstOrThrow();connectionId=stored.id;assert.equal(stored.status,'CONNECTED');assert.equal(stored.shopName,'集成测试店铺（非真实店铺）');assert.notEqual(stored.accessTokenCipher,'fixture-access-1');assert.equal(decrypt(stored.accessTokenCipher,app.get(Config).encryptionKey),'fixture-access-1');
   const data=await(await request('/shops')).text();assert.ok(!data.includes('fixture-access'));assert.ok(!data.includes('TokenCipher'));
   const replay=await request(`/shopee/callback${cb}&code=ok&shop_id=123456`);assert.match(replay.headers.get('location')!,/failed/);assert.equal(exchanges,1);

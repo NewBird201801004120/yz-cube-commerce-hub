@@ -64,3 +64,28 @@ test('attribute failure stops brand pagination before any brand requests are sen
  const f=fixture();const team={...f.team,read:async(session:string,id:string,op:string,q:Record<string,string>)=>{if(op==='get_attribute_tree')throw new Error('attribute failed');return f.team.read(session,id,op,q);}};
  const p=new LocalizationPlatform(team as never);await assert.rejects(()=>p.rawMetadata({owner,sessionId:'session'},'shop',5),/attribute failed/);assert.equal(f.queries.filter(q=>q.op==='get_brand_list').length,0);
 });
+
+test('metadata display cache isolates sessions, checks shop status, and keeps publishing rules fresh',async()=>{
+ const f=fixture(),ctx={owner,sessionId:'session'},p=new LocalizationPlatform(f.team as never);
+ const a=await p.metadata(ctx,'shop',5);const count=f.queries.length;
+ a.categories.length=0;const b=await p.metadata(ctx,'shop',5);assert.equal(b.categories.length,1);assert.equal(f.queries.length,count);
+ await p.rawMetadata(ctx,'shop',5);assert.ok(f.queries.length>count);const next=f.queries.length;
+ await p.metadata({...ctx,sessionId:'other'},'shop',5);assert.ok(f.queries.length>next);
+ f.team.shops=async()=>[{...shop,status:'REAUTH_REQUIRED'}];await assert.rejects(p.metadata(ctx,'shop',5),/不可用/);
+});
+test('concurrent display/adaptation metadata reads coalesce and failures remain retryable',async()=>{
+ const f=fixture();let fail=true,reads=0;
+ const original=f.team.read;f.team.read=async(...args:Parameters<typeof original>)=>{reads++;if(fail)throw new Error('connection failed');await new Promise(resolve=>setTimeout(resolve,5));return original(...args);};
+ const p=new LocalizationPlatform(f.team as never),ctx={owner,sessionId:'session'};
+ await assert.rejects(p.rawMetadata(ctx,'shop',5),/connection failed/);fail=false;reads=0;
+ const [a,b]=await Promise.all([p.metadata(ctx,'shop',5),p.rawMetadata(ctx,'shop',5)]);assert.equal(reads,5);a.categories.length=0;assert.equal((b.categories as any).category_list.length,1);
+});
+
+test('attribute and brand reads start while the independent category tree is still downloading',async()=>{
+ const f=fixture();let finishCategory!:(value:unknown)=>void;const category=new Promise(resolve=>{finishCategory=resolve;});let sawAttributes!:(value:void)=>void;const attributesStarted=new Promise<void>(resolve=>{sawAttributes=resolve;});
+ const team={...f.team,read:async(session:string,id:string,op:string,q:Record<string,string>)=>{if(op==='get_category')return category;if(op==='get_attribute_tree')sawAttributes();return f.team.read(session,id,op,q);}};
+ const p=new LocalizationPlatform(team as never),result=p.rawMetadata({owner,sessionId:'session'},'shop',5);
+ try{await Promise.race([attributesStarted,new Promise((_,reject)=>{const timer=setTimeout(()=>reject(Error('attributes waited for category tree')),1000);timer.unref();})]);}
+ finally{finishCategory({category_list:[{category_id:5,has_children:false}]});}
+ assert.equal((await result).categoryId,5);
+});

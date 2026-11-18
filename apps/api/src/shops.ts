@@ -16,15 +16,25 @@ export class Shops {
   async start(appId:string,req:AuthRequest) {
     const app=this.config.getApp(appId);if(!app)throw new BadRequestException('请选择已配置的App');
     const state=randomToken();
-    await this.db.authorizationAttempt.create({data:{stateHash:hash(state),sessionId:req.sessionId,appId,partnerId:String(app.partnerId),environment:app.environment,expiresAt:new Date(Date.now()+600000)}});
+    const attempt=await this.db.authorizationAttempt.create({data:{stateHash:hash(state),sessionId:req.sessionId,appId,partnerId:String(app.partnerId),environment:app.environment,expiresAt:new Date(Date.now()+600000)}});
     const redirect=new URL('/api/v1/shopee/callback',this.config.publicApi);redirect.searchParams.set('state',state);
     await this.audit(req.userId,'AUTH_START',appId,'PENDING');
-    return {url:this.client.authorizationUrl(app,redirect.toString()),expiresIn:600};
+    return {url:this.client.authorizationUrl(app,redirect.toString()),expiresIn:600,attemptId:attempt.id};
   }
-  async callback(query:Record<string,unknown>,req:AuthRequest) {
+  async authorizationStatus(id:string,sessionId:string){
+    const attempt=await this.db.authorizationAttempt.findUnique({where:{id}});
+    if(!attempt||attempt.sessionId!==sessionId)throw new NotFoundException('授权请求不存在');
+    const status=attempt.result==='TOKEN_SAVED'?'saved':attempt.result==='FAILED'?'failed':attempt.expiresAt<=new Date()?'expired':'pending';
+    return {status};
+  }
+  async callback(query:Record<string,unknown>,_req?:AuthRequest) {
     if(typeof query.state!=='string'||query.state.length>100)throw new BadRequestException('授权请求无效');
     const attempt=await this.db.authorizationAttempt.findUnique({where:{stateHash:hash(query.state)}});
-    if(!attempt||attempt.sessionId!==req.sessionId||attempt.expiresAt<=new Date()||attempt.usedAt)throw new BadRequestException('授权请求已过期、已使用或不是当前登录会话发起');
+    if(!attempt||attempt.expiresAt<=new Date()||attempt.usedAt)throw new BadRequestException('授权链接已过期或已使用，请重新生成');
+    // The one-use state delegates only this shop authorization; never transfer a login session.
+    const initiator=await this.db.session.findUnique({where:{id:attempt.sessionId},include:{user:true}});
+    if(!initiator||initiator.kind!=='WEB'||initiator.expiresAt<=new Date()||initiator.user.role!=='ADMIN')throw new BadRequestException('发起授权的管理员会话已失效，请重新登录并生成链接');
+    const actor=initiator.userId;
     if(typeof query.code!=='string'||!query.code||query.code.length>512||typeof query.shop_id!=='string'||!/^\d{1,15}$/.test(query.shop_id)||!Number.isSafeInteger(Number(query.shop_id))||Number(query.shop_id)<=0)throw new BadRequestException('缺少有效店铺授权结果，请重新授权');
     const app=this.config.getApp(attempt.appId);if(!app||String(app.partnerId)!==attempt.partnerId||app.environment!==attempt.environment)throw new BadRequestException('App配置已变更，请重新发起授权');
     const claimed=await this.db.authorizationAttempt.updateMany({where:{id:attempt.id,usedAt:null,expiresAt:{gt:new Date()}},data:{usedAt:new Date(),result:'EXCHANGING'}});
@@ -34,13 +44,13 @@ export class Shops {
       if(token.shop_id_list&&!token.shop_id_list.includes(Number(query.shop_id)))throw new PlatformError('INVALID_RESPONSE');
       const data={partnerId:String(app.partnerId),environment:app.environment,accessTokenCipher:encrypt(token.access_token,this.config.encryptionKey),refreshTokenCipher:encrypt(token.refresh_token,this.config.encryptionKey),accessExpiresAt:new Date(Date.now()+token.expire_in*1000),status:'VERIFY_PENDING',lastError:null,verifiedAt:null,refreshLeaseUntil:null};
       const connection=await this.db.shopConnection.upsert({where:{appId_shopId:{appId:app.id,shopId:query.shop_id}},create:{...data,appId:app.id,shopId:query.shop_id},update:{...data,authorizedAt:new Date(),tokenVersion:{increment:1}}});
+      await this.verify(connection.id,actor);
       await this.db.authorizationAttempt.update({where:{id:attempt.id},data:{result:'TOKEN_SAVED'}});
-      await this.verify(connection.id,req.userId);
-      await this.audit(req.userId,'AUTH_COMPLETE',connection.id,'TOKEN_SAVED');
+      await this.audit(actor,'AUTH_COMPLETE',connection.id,'TOKEN_SAVED');
       return connection.id;
     }catch(e) {
       await this.db.authorizationAttempt.update({where:{id:attempt.id},data:{result:'FAILED'}});
-      await this.audit(req.userId,'AUTH_COMPLETE',app.id,e instanceof PlatformError?e.code:'INTERNAL_ERROR');throw e;
+      await this.audit(actor,'AUTH_COMPLETE',app.id,e instanceof PlatformError?e.code:'INTERNAL_ERROR');throw e;
     }
   }
   async verify(id:string,actor:string) {
@@ -107,14 +117,18 @@ export class ShopsController {
   @Get('shopee/apps') @UseGuards(AdminGuard) apps() {return this.shops.apps();}
   @Get('shops') @UseGuards(AdminGuard) list() {return this.shops.list();}
   @Post('shopee/authorize') @UseGuards(AdminGuard) authorize(@Body() body:{appId?:unknown},@Req() req:AuthRequest) {if(typeof body?.appId!=='string')throw new BadRequestException('请选择App');return this.shops.start(body.appId,req);}
+  @Get('shopee/authorizations/:id') @UseGuards(AdminGuard) authorizationStatus(@Param('id') id:string,@Req() req:AuthRequest){return this.shops.authorizationStatus(id,req.sessionId);}
   @Get('shopee/callback') async callback(@Query() query:Record<string,unknown>,@Req() req:AuthRequest,@Res() res:Response) {
     res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');
     try {
-      const session=await this.auth.session(req);if(!session||session.user.role!=='ADMIN')throw new BadRequestException('请在发起授权的浏览器保持登录');
-      req.userId=session.userId;req.sessionId=session.id;
-      await this.shops.callback(query,req);
-      res.redirect(303,`${this.config.webOrigin}/channels/shops?authorization=saved`);
-    }catch {res.redirect(303,`${this.config.webOrigin}/channels/shops?authorization=failed`);}
+      await this.shops.callback(query);
+      res.redirect(303,`${this.config.webOrigin}/api/v1/shopee/authorization-result?status=saved`);
+    }catch {res.redirect(303,`${this.config.webOrigin}/api/v1/shopee/authorization-result?status=failed`);}
+  }
+  @Get('shopee/authorization-result') authorizationResult(@Query('status') status:string,@Res() res:Response){
+    res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');
+    const saved=status==='saved';
+    return res.type('html').send('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>店铺授权结果</title><body style="font-family:system-ui;max-width:560px;margin:12vh auto;padding:24px"><h1>'+(saved?'授权已接收':'授权未完成')+'</h1><p>'+(saved?'请回到原中台页面刷新店铺列表，确认店铺连接状态。可以关闭当前页面。':'请回到中台重新生成授权链接，并在10分钟内完成。无需在此浏览器登录中台。')+'</p></body></html>');
   }
   @Post('shops/:id/verify') @UseGuards(AdminGuard) verify(@Param('id') id:string,@Req() req:AuthRequest){return this.shops.verify(id,req.userId);}
   @Post('shops/:id/refresh') @UseGuards(AdminGuard) refresh(@Param('id') id:string,@Req() req:AuthRequest){return this.shops.refresh(id,req.userId);}

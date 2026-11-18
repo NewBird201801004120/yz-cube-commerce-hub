@@ -8,7 +8,7 @@ export class TeamShopClient {
  constructor(){const u=new URL(this.origin);if(u.protocol!=='https:'&&!(process.env.NODE_ENV==='test'&&u.hostname==='127.0.0.1'))throw Error('Team API requires HTTPS');if(u.username||u.password||u.search||u.hash||u.pathname!=='/')throw Error('Team API must be an origin');this.origin=u.origin;}
  get managementOrigin(){return this.origin;}
  async request(path:string,token?:string,body?:unknown){
-  const res=await fetch(`${this.origin}/api/v1/development${path}`,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(40000),redirect:'error'});
+  const res=await fetch(`${this.origin}/api/v1/development${path}`,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(path.includes('/read/get_category')?100000:40000),redirect:'error'});
   const data=await res.json();if(!res.ok){const {HttpException}=await import('@nestjs/common');throw new HttpException({message:data.message||'团队服务请求失败',diagnostic:safePlatformDiagnostic(data.diagnostic)},res.status);}return data;
  }
  async login(email:string,password:string,id:string){
