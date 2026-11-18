@@ -7,7 +7,7 @@
     "dev": "node scripts/team-dev.mjs",
     "build": "pnpm --filter @yz-cube/api build && pnpm --filter @yz-cube/console build",
     "typecheck": "pnpm --filter @yz-cube/api typecheck && pnpm --filter @yz-cube/console typecheck",
-    "test": "pnpm --filter @yz-cube/api test",
+    "test": "node --test scripts/test/*.test.mjs && pnpm --filter @yz-cube/api test",
     "verify:baseline": "node scripts/check-prototype-baseline.mjs",
     "local:setup": "node scripts/local-setup.mjs",
     "local:stop": "node scripts/local-stop.mjs",
