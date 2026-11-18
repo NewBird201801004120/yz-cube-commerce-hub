@@ -2,9 +2,11 @@ import {mkdirSync,existsSync,readFileSync,writeFileSync,renameSync,chmodSync} fr
 import {resolve} from 'node:path';
 import {createHash,randomBytes} from 'node:crypto';
 
+export const DEFAULT_LOCALIZATION_OWNER_EMAIL = "wangzy@yz-cube.com";
+
 /** Server-side local integration setup; never read a developer's login/password file. */
 export function configureLocalSimulation(root,env=process.env){
- const ownerEmail=env.LOCALIZATION_OWNER_EMAIL?.trim().toLowerCase();
+ const ownerEmail=(env.LOCALIZATION_OWNER_EMAIL??DEFAULT_LOCALIZATION_OWNER_EMAIL).trim().toLowerCase();
  if(!ownerEmail||ownerEmail.length>254||!/^\S+@[^\s@]+\.[^\s@]+$/.test(ownerEmail))throw Error('请在 .env.team 或进程环境变量中配置有效的 LOCALIZATION_OWNER_EMAIL（用于登录中台的账号邮箱），参考 .env.team.example；无需配置登录密码。');
  const dir=resolve(root,'.local/localization-integration');
  const clientFile=resolve(dir,'local-simulation-client.json'),deliveryFile=resolve(dir,'local-simulation-delivery.txt');

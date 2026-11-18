@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,readFileSync,existsSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {configureLocalSimulation} from '../team-simulation-config.mjs';
+import {configureLocalSimulation,DEFAULT_LOCALIZATION_OWNER_EMAIL} from '../team-simulation-config.mjs';
 
 test('cold setup uses environment email without a shared login file and retains token on restart',()=>{
  const root=mkdtempSync(join(tmpdir(),'team-config-'));
@@ -16,8 +16,14 @@ test('cold setup uses environment email without a shared login file and retains 
   assert.throws(()=>configureLocalSimulation(root,{LOCALIZATION_OWNER_EMAIL:'other@example.com'}),/不一致/);assert.equal(readFileSync(file,'utf8'),initial);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
-test('missing or invalid environment email gives actionable configuration error without creating credentials',()=>{
+test('invalid explicit environment email gives actionable configuration error without creating credentials',()=>{
  const root=mkdtempSync(join(tmpdir(),'team-config-'));
- try{for(const value of [undefined,'','not-an-email','a\nb@example.com'])assert.throws(()=>configureLocalSimulation(root,{LOCALIZATION_OWNER_EMAIL:value}),/LOCALIZATION_OWNER_EMAIL/);assert.equal(existsSync(join(root,'.local')),false);}
+ try{for(const value of ['','not-an-email','a\nb@example.com'])assert.throws(()=>configureLocalSimulation(root,{LOCALIZATION_OWNER_EMAIL:value}),/LOCALIZATION_OWNER_EMAIL/);assert.equal(existsSync(join(root,'.local')),false);}
+ finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test('fresh checkout starts with the shared default without an environment or login file',()=>{
+ const root=mkdtempSync(join(tmpdir(),'team-default-'));
+ try{const file=configureLocalSimulation(root,{});assert.equal(JSON.parse(readFileSync(file,'utf8'))[0].ownerEmail,DEFAULT_LOCALIZATION_OWNER_EMAIL);assert.equal(existsSync(join(root,'.env.team')),false);assert.equal(existsSync(join(root,'.local/shared-login.txt')),false);}
  finally{rmSync(root,{recursive:true,force:true});}
 });

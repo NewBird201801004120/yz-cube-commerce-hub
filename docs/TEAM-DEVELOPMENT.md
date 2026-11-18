@@ -4,15 +4,15 @@
 
 准备 Node.js 22、pnpm 9.12.0、Git。项目放在公司的私有 Git 仓库。成员拉取后，在项目根目录执行：
 
-先复制 `.env.team.example` 为 `.env.team`，填写 `LOCALIZATION_OWNER_EMAIL`，值为实际登录中央中台的账号邮箱。也可通过进程环境变量提供；`TEAM_API_ORIGIN` 指定中央服务地址。无需配置中台登录密码或提供 `.local/shared-login.txt`。
+项目已预填共用中台账号邮箱，直接启动即可，不需要创建 `.env.team` 或填写邮箱：
 
 ```sh
-cp .env.team.example .env.team
-# 编辑 .env.team，填写 LOCALIZATION_OWNER_EMAIL
 pnpm dev
 ```
 
-首次启动会使用配置邮箱生成本地仿真接入令牌。再次启动保留原令牌与草稿；如果邮箱与已有本地接入配置不一致，会明确提示并停止，不自动改写数据归属。缺少或无效的邮箱会提示配置项名称，不再报私密账号文件缺失。
+如需使用其他账号或中央服务地址，可复制 `.env.team.example` 为 `.env.team`，覆盖 `LOCALIZATION_OWNER_EMAIL` 和 `TEAM_API_ORIGIN`。环境配置优先于项目默认值。无需配置中台登录密码或提供 `.local/shared-login.txt`。
+
+首次启动会使用共用邮箱生成本地仿真接入令牌。再次启动保留原令牌与草稿；如果覆盖的邮箱与已有本地接入账号不一致，会明确提示并停止，不自动改写数据归属。无效的邮箱会提示配置项名称。
 
 `pnpm dev` 会自动安装锁定依赖、生成 Prisma 客户端、编译 Nest 后端，并同时启动本地 Nest 和 Next，不需要另外执行团队启动脚本。打开 http://127.0.0.1:3100/login，用共用的**中台账号**登录。在“店铺接口联调”选择店铺并读取商品、翻页、查看详情。商品本地化使用独立的本地仿真模式，接入请求、来源快照、文案和草稿写入本机；具体调用见[本地化仿真联调说明](LOCALIZATION-LOCAL-INTEGRATION.md)。第一次安装需要联网；3100 和 4100 端口需空闲。Ctrl+C 停止服务。更换电脑或重启本地后重新登录中台账号，正常情况下不需重新授权 Shopee。
 
