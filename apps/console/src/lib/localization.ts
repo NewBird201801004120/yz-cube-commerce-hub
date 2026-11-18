@@ -19,6 +19,7 @@ export const localizationApi={
  sources:()=>api<SourceProduct[]>('/localization/sources'),
  shops:()=>api<MarketShop[]>('/localization/shops'),
  drafts:()=>api<MarketDraft[]>('/localization/drafts'),
+ draft:(id:string)=>api<MarketDraft>(`/localization/drafts/${encodeURIComponent(id)}`),
  createDraft:(sourceId:string,shopId:string)=>api<MarketDraft>('/localization/drafts',{method:'POST',body:JSON.stringify({sourceId,shopId})}),
  save:(draft:MarketDraft)=>api<MarketDraft>(`/localization/drafts/${draft.id}`,{method:'PUT',body:JSON.stringify(draft)}),
  localize:(id:string)=>api<MarketDraft>(`/localization/drafts/${id}/localize`,{method:'POST',body:'{}'}),
