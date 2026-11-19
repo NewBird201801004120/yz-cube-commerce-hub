@@ -13,6 +13,7 @@ export const publishStatus:Record<string,string>={preparing:'准备发布',creat
 export type ShopProduct={key:string;shopId:string;shopName:string;region:string;itemId:string;title:string;image?:string;status:string;currency:string;price?:number;stock?:number};
 export type ShopProducts={warnings?:string[];items:ShopProduct[];nextOffset:number|null;hasMore:boolean};
 export const localizationApi={
+ prepareListing:(images:ListingImage[])=>api<{urls:string[]}>('/localization/listing-images/prepare',{method:'POST',body:JSON.stringify({images:images.map(({jobId,slotId})=>({jobId,slotId}))})}),
  shopProducts:(shopId='',offset=0,pageSize=20)=>api<ShopProducts>(`/localization/shop-products?${new URLSearchParams({...(shopId?{shopId}:{}),offset:String(offset),pageSize:String(pageSize)})}`),
  importShopProduct:(shopId:string,itemId:string)=>api<SourceProduct>(`/localization/shop-products/${encodeURIComponent(shopId)}/${encodeURIComponent(itemId)}/import`,{method:'POST',body:'{}'}),
  adapt:(id:string)=>api<{draft:MarketDraft;issues:string[]}>(`/localization/drafts/${id}/adapt`,{method:'POST',body:'{}'}),

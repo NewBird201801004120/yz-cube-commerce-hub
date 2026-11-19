@@ -102,6 +102,12 @@ export class LocalizationController {
  @Post('jobs/:id/reconcile') reconcile(@Req() r:LocalizationRequest,@Param('id') id:string){return this.checkStatus(r,id);}
  @Post('jobs/:id/status') checkStatus(@Req() r:LocalizationRequest,@Param('id') id:string){return this.service.engine.checkStatus(r.localization.owner,id,this.service.publisher(r.localization),(draft,task)=>this.platform.taskStatus(r.localization,draft,task));}
  @Get('listing-images') listing(@Req() r:LocalizationRequest){return this.service.content.listingImages(r.localization.owner);}
+ @Post('listing-images/prepare') prepareListing(@Req() r:LocalizationRequest,@Body() body:{images:{jobId:string;slotId:string}[]}){
+  const images=body?.images;
+  if(!Array.isArray(images)||!images.length||images.length>9||images.some(image=>!image||typeof image.jobId!=='string'||typeof image.slotId!=='string'||image.jobId!==images[0]?.jobId))throw new BadRequestException('请选择同一组图任务中的1—9张已完成图片');
+  // Preparing owned assets never mutates a source or draft. The operator saves the edit separately.
+  return {urls:this.service.content.attach(r.localization.owner,images[0].jobId,images.map(image=>image.slotId))};
+ }
  @Post('drafts/:id/listing-images') attach(@Req() r:LocalizationRequest,@Param('id') id:string,@Body() b:{jobId:string;slotIds:string[];revision:number}){const d=this.service.engine.getDraft(r.localization.owner,id);if(!b||typeof b.jobId!=='string'||!Number.isSafeInteger(b.revision))throw new BadRequestException('请选择组图任务并提供当前版本');if(d.revision!==b.revision)throw new ConflictException('商品版本已更新，请刷新后重试');if(this.service.engine.listTasks(r.localization.owner).some(t=>t.draftId===id&&(t.status!=='failed'||t.remoteId)))throw new ConflictException('此版本已有发布任务，不能替换图片');const images=this.service.content.attach(r.localization.owner,b.jobId,b.slotIds);return this.service.engine.updateDraft(r.localization.owner,id,{images,imagesReviewed:false,marketConfirmed:false},d.revision);}
  @Post('assets') upload(@Req() r:LocalizationRequest,@Body() b:{data:string}){if(typeof b?.data!=='string'||b.data.length>12*1024*1024||!/^[A-Za-z0-9+/]+={0,2}$/.test(b.data))throw new BadRequestException('图片数据无效');return {url:this.service.content.store(r.localization.owner,Buffer.from(b.data,'base64'))};}
  @Get('assets/:id') asset(@Req() r:LocalizationRequest,@Param('id') id:string,@Res() res:Response){const a=this.service.content.asset(r.localization.owner,id);res.type(a.mime).setHeader('X-Content-Type-Options','nosniff');res.send(a.bytes);}

@@ -30,3 +30,17 @@ test('machine Listing routes require dedicated token, reject browser credentials
  try{const result=await call('/listing/jobs');assert.equal(result.status,200);const body=await result.json();assert.equal(body.jobs.length,1);assert.equal(body.jobs[0].language,'English');assert.equal(body.jobs[0].slots.length,1);assert.equal(body.jobs[0].slots[0].url,undefined);const path=body.jobs[0].slots[0].imagePath;const image=await fetch(base+path,{headers:{authorization:'Bearer '+token}});assert.equal(image.status,200);assert.equal(image.headers.get('content-type'),'image/png');assert.deepEqual(Buffer.from(await image.arrayBuffer()),png);
  assert.equal((await call('/listing/jobs','bad')).status,401);assert.equal((await call('/listing/jobs',token,{origin:'https://browser.test'})).status,401);assert.equal((await call('/listing/jobs',token,{cookie:'session=fixture'})).status,401);assert.deepEqual((await (await call('/listing/jobs',other)).json()).jobs,[]);assert.equal((await call(`/listing/jobs/${f.jobId}/images/hero`,other)).status,404);assert.equal((await call(`/listing/jobs/${f.jobId}/images/pending`)).status,404);
  }finally{await app.close();if(previous===undefined)delete process.env.LOCALIZATION_INTEGRATIONS_FILE;else process.env.LOCALIZATION_INTEGRATIONS_FILE=previous;rmSync(f.dir,{recursive:true,force:true});}});
+
+test('preparing completed listing images stages owned assets without replacing any saved draft',()=>{
+ const f=fixture();try{
+  const source=f.engine.importSource(f.owner,{schemaVersion:1,sourceSystem:'fixture',sourceProductId:'s',title:'Product',description:'',images:['https://example.com/original.png'],parameters:{},specificationNames:[],variants:[{sku:'s',options:[]}]});
+  const draft=f.engine.createDraft(f.owner,source.id,{id:'shop',shopId:'1',shopName:'Shop',region:'PH',currency:'PHP',language:'English'});
+  const controller=new LocalizationController({engine:f.engine,content:f.content} as LocalizationService,{} as LocalizationPlatform),req={localization:{owner:f.owner}} as never;
+  const result=controller.prepareListing(req,{images:[{jobId:f.jobId,slotId:'hero'}]});assert.equal(result.urls.length,1);assert.deepEqual(f.engine.getDraft(f.owner,draft.id),draft);assert.deepEqual(f.engine.getSource(f.owner,source.id),source);
+  assert.deepEqual(f.content.asset(f.owner,result.urls[0].split('/').pop()!).bytes,png);
+  assert.throws(()=>controller.prepareListing({localization:{owner:'other'}} as never,{images:[{jobId:f.jobId,slotId:'hero'}]}),/任务不存在/);
+  assert.throws(()=>controller.prepareListing(req,{images:[{jobId:f.jobId,slotId:'pending'}]}),/尚未完成/);
+  assert.throws(()=>controller.prepareListing(req,{images:Array.from({length:10},()=>({jobId:f.jobId,slotId:'hero'}))}),/1—9/);
+  assert.throws(()=>controller.prepareListing(req,{images:[{jobId:f.jobId,slotId:'hero'},{jobId:f.jobId,slotId:'hero'}]}),/1—9/);
+ }finally{rmSync(f.dir,{recursive:true,force:true});}
+});
