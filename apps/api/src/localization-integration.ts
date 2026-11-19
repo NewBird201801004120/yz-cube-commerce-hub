@@ -65,7 +65,7 @@ export function parseImport(raw:unknown):ImportInput{
  return {schemaVersion:1,requestId:b.requestId,product,target:{...b.target,...(b.target.publishing===undefined?{}:{publishing:parsePublishingInput(b.target.publishing,product.variants.map(v=>v.sku))})}};
 }
 /** Exempt only these machine routes from browser Origin checks. The guard always rejects cookies/origins. */
-export function integrationServerRequest(req:Pick<Request,'path'|'headers'|'method'>){return !req.headers.origin&&!req.headers.cookie&&typeof req.headers.authorization==='string'&&req.method==='POST'&&(req.path==='/api/v1/localization/integration/imports'||/^\/api\/v1\/localization\/integration\/imports\/[a-f0-9-]{36}\/localize$/.test(req.path)||/^\/api\/v1\/development\/localization\/imports\/[a-f0-9-]{36}\/localize$/.test(req.path));}
+export function integrationServerRequest(req:Pick<Request,'path'|'headers'|'method'>){return !req.headers.origin&&!req.headers.cookie&&typeof req.headers.authorization==='string'&&req.method==='POST'&&(req.path==='/api/v1/development/localization/imports/notifications/read'||req.path==='/api/v1/localization/integration/imports'||/^\/api\/v1\/localization\/integration\/imports\/[a-f0-9-]{36}\/localize$/.test(req.path)||/^\/api\/v1\/development\/localization\/imports\/[a-f0-9-]{36}\/localize$/.test(req.path));}
 @Injectable()
 export class LocalizationIntegrationGuard implements CanActivate{
  canActivate(context:ExecutionContext){const req=context.switchToHttp().getRequest<MachineRequest>();

@@ -8,6 +8,20 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: yz_ci
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: yz_commerce_hub
+        ports:
+          - 55439:5432
+        options: >-
+          --health-cmd "pg_isready -U yz_ci -d yz_commerce_hub"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,5 +67,28 @@ jobs:
           echo "AEG_BASE=$BASE" >> "$GITHUB_ENV"
       - name: Policy check before dependency installation
         run: node .agent/scripts/cli.mjs install --root .
+      - name: Prepare isolated test environment and databases
+        env:
+          PGPASSWORD: ci-only-password
+        run: |
+          # Disposable runner-only credentials; never use deployment secrets here.
+          node --input-type=module <<'JS'
+          import {writeFileSync} from 'node:fs';
+          import {randomBytes,scryptSync} from 'node:crypto';
+          const salt=randomBytes(16).toString('hex');
+          const settings={
+            DATABASE_URL:'postgresql://yz_ci:ci-only-password@127.0.0.1:55439/yz_commerce_hub?schema=public',
+            TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64'),
+            ADMIN_EMAIL:'ci-admin@local.test',
+            ADMIN_PASSWORD_HASH:`${salt}:${scryptSync(randomBytes(32).toString('hex'),salt,64).toString('hex')}`,
+            WEB_ORIGIN:'http://127.0.0.1:3100',
+            PUBLIC_API_ORIGIN:'http://127.0.0.1:3100'
+          };
+          writeFileSync('.env.local',Object.entries(settings).map(([key,value])=>`${key}=${value}`).join('\n')+'\n',{mode:0o600,flag:'wx'});
+          JS
+          psql -h 127.0.0.1 -p 55439 -U yz_ci -d yz_commerce_hub -v ON_ERROR_STOP=1 -c 'CREATE DATABASE yz_commerce_hub_test;'
+          pnpm --filter @yz-cube/api exec prisma generate
+          pnpm db:migrate
+          DATABASE_URL='postgresql://yz_ci:ci-only-password@127.0.0.1:55439/yz_commerce_hub_test?schema=public' pnpm db:migrate
       - name: Effective risk verification (basic or configured trusted mode)
         run: node .agent/scripts/cli.mjs verify --root . --base "$AEG_BASE"

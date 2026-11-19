@@ -53,6 +53,8 @@ export class TeamShopClient {
   return rows.slice(0,50).map(({id,action,target,result,createdAt})=>({id,action,target,result,createdAt}));
  }
  receipts(id:string){return this.request('/localization/imports',this.token(id));}
+ receiptNotifications(id:string){return this.request('/localization/imports/notifications',this.token(id));}
+ readReceiptNotifications(id:string,body:unknown){return this.request('/localization/imports/notifications/read',this.token(id),body);}
  retryReceipt(id:string,receiptId:string){return this.request(`/localization/imports/${encodeURIComponent(receiptId)}/localize`,this.token(id),{});}
  videoCapabilities(id:string){return this.request('/video-capabilities',this.token(id));}
  async video(id:string,connectionId:string,operation:string,body:unknown){this.displayReads.clear();try{return await this.request(`/shops/${encodeURIComponent(connectionId)}/video/${encodeURIComponent(operation)}`,this.token(id),body);}finally{this.displayReads.clear();}}

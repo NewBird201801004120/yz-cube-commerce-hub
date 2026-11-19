@@ -1,3 +1,22 @@
+# 2026-11-19 消息提醒与前端结构更新
+
+本次使用完整 Git release 构建并同时更新核心 API、主控制台、本地化 API、本地化控制台；运行代码以 `/opt/yz-commerce/current/REVISION` 为准。下方较早的单文件热修、未部署功能说明均为历史记录。
+
+- 右上角消息读取真实仿真接收记录；可见页面每 15 秒同步，回到窗口、恢复网络或主动刷新时重新同步。不是模拟推送，不会自动创建发布任务。
+- 管理员会话使用 `GET /api/v1/localization/receipts/notifications`、`POST /api/v1/localization/receipts/notifications/read`；已读请求为 `{ "ids": ["消息ID"] }` 或 `{ "all": true }`。未授权返回 401；接入专用令牌不具有管理员消息权限。
+- 本地团队网关通过既有 DEV 会话调用 `/api/v1/development/localization/imports/notifications` 及 `/read`，使用中央同一账号的已读记录，不能用本机缓存替代中央记录。该前缀由现有 Nginx 转发至 4111，生产和本地均须部署新版 API。
+- 已读状态单独保存在 `LOCALIZATION_DATA_DIR/notification-state/`，文件 0600、目录 0700，按账号隔离；不会修改或删除接收记录。发布切换、刷新及服务重启均保留。
+- 商品组图以任务列表作为入口，创建和已有任务详情使用 URL 恢复；保留上传、分析、生成、重试和下载逻辑。无需数据库迁移或新增环境密钥。
+- 列表刷新失败保留上次内容并提示；恢复网络后同步。人工操作与后台同步分别显示状态，发布记录保持失败才允许继续的规则。
+
+部署验收必须先通过 `pnpm test`、`pnpm typecheck`、`pnpm build`、`pnpm verify:baseline` 和 Diff Gate。Linux 独立 release 构建完成后再切换两个 current 链接，保留原指针、Nginx 配置和持久数据备份；四个服务正常后运行公共网关验收。只检查服务启动不算完成。
+
+可复用验收：以进程环境提供 `SMOKE_BASE`、`SMOKE_EMAIL`、`SMOKE_PASSWORD` 后执行 `node scripts/smoke-deployment.mjs`。账号密码不放进命令行、文档或 Git。脚本登录后逐项检查主 API、本地化与组图记录、视频设置、消息权限、全部主要页面及真实引用的静态资源，最后退出登录；不会发布商品、标记真实消息或执行 AI 生成。生产上线后再用浏览器验证消息数字、已读持久化、列表/详情以及手机窄屏。
+
+GitHub Actions 使用独立 PostgreSQL 服务及一次性 `.env.local` 测试配置，不能读取生产凭据。必须检查实际 CI 结果，不能以本地通过代替。
+
+---
+
 # 2026-11-19 公网商品图片下载与原任务恢复
 
 本地DNS将OSS域名解析到代理Fake-IP 198.18.x.x，安全下载器正确拒绝保留地址。已通过受DevelopmentGuard保护的download_image操作在中央解析并锁定真实公网地址，保留HTTPS、禁内网、禁跳转、8MB与图片格式限制。另修复Node 22自动地址选择与固定IP lookup回调不兼容的问题。

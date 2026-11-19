@@ -1,4 +1,5 @@
-import {Controller,Get,Post,Param,Req,UseGuards,Optional,NotFoundException,BadRequestException} from '@nestjs/common';
+import {Controller,Get,Post,Param,Req,Body,UseGuards,Optional,NotFoundException,BadRequestException} from '@nestjs/common';
+import {LocalizationNotifications} from './localization-notifications';
 import type {Request} from 'express';
 import {LocalizationService,LocalizationGuard} from './localization';
 import {LocalizationIntegrationService,receiptReviewSourceId} from './localization-integration';
@@ -14,6 +15,16 @@ export class LocalizationReceiptsController {
  constructor(@Optional() private integrations?:LocalizationIntegrationService,@Optional() private team?:TeamShopClient,@Optional() private service?:LocalizationService){}
  private opening=new Map<string,Promise<unknown>>();
  private centralIds=new Map<string,Set<string>>();
+ @Get('notifications') notifications(@Req() req:Request&{localization:LocalizationContext}){
+  const {owner,sessionId}=req.localization;
+  if(this.team)return this.team.receiptNotifications(sessionId!);
+  return new LocalizationNotifications(this.service!.engine.dir).list(owner,this.integrations!.listForOwner(owner).records);
+ }
+ @Post('notifications/read') readNotifications(@Req() req:Request&{localization:LocalizationContext},@Body() body:unknown){
+  const {owner,sessionId}=req.localization;
+  if(this.team)return this.team.readReceiptNotifications(sessionId!,body);
+  return new LocalizationNotifications(this.service!.engine.dir).markRead(owner,this.integrations!.listForOwner(owner).records,body);
+ }
  private localReceipt(owner:string,id:string){if(!this.team||this.centralIds.get(owner)?.has(id))return undefined;return this.integrations?.listForOwner(owner).records.find(r=>r.id===id);}
  @Get() async list(@Req() req:Request&{localization:LocalizationContext}){
   if(this.team){const data=await this.team.receipts(req.localization.sessionId!),owner=req.localization.owner;const central=data.records.map((r:any)=>({...r,origin:'central' as const,reviewSourceId:r.reviewSourceId||(r.draftId?receiptReviewSourceId(r.id):r.sourceId)}));const ids=new Set<string>(central.map((r:any)=>r.id));this.centralIds.set(owner,ids);const local=(this.integrations?.listForOwner(owner).records||[]).filter(r=>!ids.has(r.id)).map(r=>({...r,origin:'local' as const}));return {records:[...central,...local].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')),environment:'team',reviewOrigin:this.team.managementOrigin};}
@@ -70,8 +81,10 @@ export class LocalizationReceiptsController {
 @Controller('development/localization/imports')
 @UseGuards(DevelopmentGuard)
 export class LocalizationReceiptsDevelopmentController {
- constructor(private integrations:LocalizationIntegrationService,private db:Database){}
+ constructor(private integrations:LocalizationIntegrationService,private db:Database,@Optional() private service?:LocalizationService){}
  private async owner(req:AuthRequest){return (await this.db.user.findUniqueOrThrow({where:{id:req.userId},select:{email:true}})).email;}
  @Get() async list(@Req() req:AuthRequest){return this.integrations.listForOwner(await this.owner(req));}
+ @Get('notifications') async notifications(@Req() req:AuthRequest){const owner=await this.owner(req);return new LocalizationNotifications(this.service!.engine.dir).list(owner,this.integrations.listForOwner(owner).records);}
+ @Post('notifications/read') async readNotifications(@Req() req:AuthRequest,@Body() body:unknown){const owner=await this.owner(req);return new LocalizationNotifications(this.service!.engine.dir).markRead(owner,this.integrations.listForOwner(owner).records,body);}
  @Post(':id/localize') async retry(@Req() req:AuthRequest,@Param('id') id:string){return this.integrations.retryForOwner(await this.owner(req),id);}
 }

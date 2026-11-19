@@ -1,0 +1,21 @@
+.root{position:relative;flex-shrink:0}
+.root .trigger{position:relative;display:flex;align-items:center;gap:6px;min-height:36px;padding:6px 12px;border:1px solid var(--line);border-radius:6px;color:var(--ink);background:#fff;font:inherit}
+.trigger svg{width:18px;height:18px}
+.badge{position:absolute;top:-7px;right:-6px;min-width:18px;height:18px;border-radius:10px;background:#c73543;color:#fff;font-size:10px;font-variant-numeric:tabular-nums;display:grid;place-items:center;padding:0 4px;border:2px solid #fff}
+.syncWarning{color:#a35b0a;font-weight:700}
+.panel{position:fixed;inset:68px 24px auto auto;margin:0;width:min(400px,calc(100vw - 24px));max-height:calc(100dvh - 92px);overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);padding:0;box-shadow:0 12px 32px #12131624;font-size:13px}
+.heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px 10px}
+.heading h2{font-size:16px;font-family:inherit;text-wrap:balance}
+.heading small{font-size:11px;color:var(--muted);font-weight:400;margin-left:8px}
+.panel .close{border:0;background:transparent;color:var(--muted);width:28px;height:28px;font-size:22px}
+.toolbar{padding:0 18px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+.toolbar>span{color:var(--muted);font-size:11px}.toolbar>div{display:flex;gap:6px}.panel .toolbar button{min-height:30px;padding:4px 8px;font-size:11px}
+.empty{padding:40px 18px;text-align:center;color:var(--muted)}
+.error{margin:12px 18px;padding:10px;background:#fff1f2;border-radius:6px;color:#b12237;font-size:12px;overflow-wrap:anywhere;text-wrap:pretty}
+.list{list-style:none;margin:0;padding:0}.list li+li{border-top:1px solid #f2efeb}
+.panel .list button{width:100%;display:flex;align-items:flex-start;gap:10px;padding:15px 18px;border:0;text-align:left;background:#fff;color:inherit;white-space:normal}
+.panel .list button:hover{background:var(--ivory)}.panel .list button.unread{background:#fcf8f6}.panel .list button.unread:hover{background:#f7efeb}
+.dot{margin-top:6px;width:6px;height:6px;border-radius:50%;flex-shrink:0;background:var(--wine)}.read .dot{background:transparent}
+.content{display:grid;gap:5px;min-width:0;flex:1}.content strong{font-weight:600;white-space:normal;overflow-wrap:anywhere;text-wrap:pretty}.content>span,.content time{font-size:11px;color:var(--muted)}.content time{font-variant-numeric:tabular-nums}
+.footer{padding:12px 18px;border-top:1px solid var(--line);text-align:right}.footer a{color:var(--wine);font-size:12px;text-decoration:none}
+@media(max-width:540px){.panel{top:60px;right:12px;max-height:calc(100dvh - 80px)}.root .trigger{padding:6px 9px}.trigger>span:not(.badge):not(.syncWarning){display:none}}
