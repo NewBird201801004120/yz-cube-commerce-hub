@@ -31,7 +31,7 @@ export function ProductEditor({value,disabled,onChange,onChooseListing,onUploadi
  return <fieldset disabled={disabled} className={styles.editor}>
   <CopySuggestions value={value} referenceImages={referenceImages} disabled={disabled||!!uploading} onApply={patch}/>
   <label><span>商品标题</span><input value={value.title} onChange={e=>patch({title:e.target.value})} required/></label>
-  <label><span>商品卖点</span><textarea value={value.sellingPoints.join('\n')} placeholder="每行一条，可留空" onChange={e=>patch({sellingPoints:e.target.value.split('\n')})}/></label>
+  <label><span>商品卖点（选填）</span><textarea value={value.sellingPoints.join('\n')} placeholder="每行一条，可留空" onChange={e=>patch({sellingPoints:e.target.value.split('\n')})}/></label>
   <label><span>商品描述</span><textarea className={styles.longDescription} value={value.description} onChange={e=>patch({description:e.target.value})}/></label>
   <div className={styles.editorImages}>
    <div><strong>商品图片 <small>{value.images.length} / 9</small></strong><div className={styles.actions}>{referenceImages.length>0&&<Button type="button" variant="outline" disabled={disabled||!!uploading} onClick={()=>{setUploadError('');updateImages([...new Set(referenceImages)].slice(0,9));}}>使用参考图</Button>}<Button type="button" variant="outline" disabled={disabled||!!uploading} onClick={onChooseListing}>使用已生成组图</Button><Button type="button" variant="outline" disabled={disabled||!!uploading||value.images.length>=9} onClick={()=>input.current?.click()}>上传图片</Button></div></div>

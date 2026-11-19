@@ -165,3 +165,4 @@ test('one-click completion initializes variations and lists without a separate s
  await f.p.operation(f.ctx,'shop','complete',body);assert.equal(f.creates,1);assert.equal(f.initializations,1);assert.equal(f.listed,1);
  }finally{f.close();}
 });
+test('Shopee product payload accepts no selling points and sends the provided description',()=>{const d=draft();d.sellingPoints=[];d.description='Complete factual product description';const payload=productPayload(d,'LOC-'+randomUUID(),['image-id']);assert.equal(payload.description,d.description);assert.equal(Object.hasOwn(payload,'sellingPoints'),false);assert.equal(Object.hasOwn(payload,'selling_points'),false);});

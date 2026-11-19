@@ -83,4 +83,6 @@
 
 建议先展示供运营逐项确认，应用只更新当前编辑表单，点击“保存资料”才持久化；取消编辑不更改原资料。生成期间显示加载状态；编辑内容已变化时丢弃旧建议，避免覆盖新输入。图片仅支持直接可见外观，不凭图片推断材质、功效、认证或真实可售SKU，广告、水印、Logo不作为新增商品事实。
 
+卖点为选填内容，不是Shopee独立的必填上架字段；空卖点不阻止发布。标题、描述已完整时，不因卖点为空调用AI。补全文案允许模型省略卖点或返回空数组；已有卖点保留，发布时沿用并入描述的现有映射。
+
 内部接口 `POST /api/v1/localization/drafts/:id/copy-suggestions` 复用管理员登录会话，请求 `{revision:number,title?:string,sellingPoints?:string[],description?:string,images?:string[]}`；返回 `{draftId,revision,language,title,sellingPoints,description,warnings}`。账号、版本及素材归属均须核验。接口不保存、不发布商品，不提供给仿真端作为推送接口。
