@@ -7,7 +7,7 @@ import {api,errorMessage} from '@/lib/api';
 import {encodeFile,jobStatus,type AiSettings,type ListingJob} from '@/lib/listing';
 import {ListingTaskList} from './task-list';
 import {SourceIntake} from './source-intake';
-import {intakePrimary,listingIntakeUrl,intakeMarket,intakeLanguage,listingMarkets,listingLanguages,type ListingIntake} from '@/lib/listing-intake';
+import {intakeAttachments,listingIntakeUrl,intakeMarket,intakeLanguage,listingMarkets,listingLanguages,type ListingIntake} from '@/lib/listing-intake';
 import type {SourceProduct} from '@/lib/localization';
 import styles from './tasks.module.css';
 export default function ListingPage(){
@@ -46,7 +46,7 @@ export default function ListingPage(){
  function create(){version.current++;setIntakeContext(null);resetIntakeForm();setDetail(true);setSelected('');setJob(null);setEditing('');setError('');setConnection('');route('new');}
  function back(){version.current++;setIntakeContext(null);setDetail(false);setSelected('');setJob(null);setEditing('');setError('');setConnection('');route('');void reloadHistory();}
  function resetIntakeForm(){setPrimary(null);setImages([]);setFiles([]);setName('');setSku('');setBrand('');setVisualBrief('');setNotes('');setMarket('菲律宾');setLanguage('英语');setError('');requestKey.current='';}
- function applyIntake(data:ListingIntake,analyzed:boolean){if(!analyzed){setPrimary(intakePrimary(data.primary));setImages([]);setFiles([]);setVisualBrief('');setMarket(intakeMarket(data.market)||'菲律宾');setLanguage(intakeLanguage(data.language)||'英语');}setName(data.name);setSku(data.sku);setBrand(data.brand);setNotes(data.notes);setVisualBrief(data.visualBrief||'');setError('');requestKey.current='';}
+ function applyIntake(data:ListingIntake,analyzed:boolean){if(!analyzed){const attachments=intakeAttachments(data);setPrimary(attachments.primary);setImages(attachments.supplements);setFiles([]);setVisualBrief('');setMarket(intakeMarket(data.market)||'菲律宾');setLanguage(intakeLanguage(data.language)||'英语');}setName(data.name);setSku(data.sku);setBrand(data.brand);setNotes(data.notes);setVisualBrief(data.visualBrief||'');setError('');requestKey.current='';}
  function chooseSource(source:SourceProduct){setIntakeContext({sourceId:source.id});window.history.replaceState(null,'',listingIntakeUrl(source.id));}
  const running=!!job&&['planning','running','stopping'].includes(job.status);
  return <Shell email={email} active="listing">{!detail&&<ListingTaskList jobs={history} loading={listLoading} ready={listReady} onRefresh={()=>void reloadHistory()} onCreate={create} onOpen={select}/>} {detail&&<section className={`card connect-panel ${styles.detailHeader}`}><div><h2>{job?job.name:selected?'组图详情':'创建组图'}</h2></div><div className="connect-actions"><Button variant="outline" disabled={!!busy} onClick={back}>返回任务列表</Button>{selected?<Button variant="outline" disabled={!!busy} onClick={create}>创建组图</Button>:<Button disabled={!!busy||intakeLoading||!primary||!configured} onClick={()=>void generate()}>{busy==='create'?'上传中…':'生成一组图片'}</Button>}</div></section>}{connection&&<div role="status" className="message">{connection}</div>}{error&&<div id="listing-form-error" role="alert" className="message error">{error}</div>}{detail&&configured===false&&!selected&&<div className="message">请先完成 AI API 配置后开始生成。<Link className="inline-link" href="/settings/ai">前往配置 →</Link></div>}{detail&&selected&&!job&&<section className="card listing-panel" role="status">{error?'未能读取该任务，请返回列表重试。':'正在读取组图详情…'}</section>}
