@@ -124,6 +124,11 @@ test('machine imports: scoped authentication, persistent idempotency, independen
   const {language:omitted,...targetWithoutLanguage}=payload.target;
   const defaultResponse=await call('/imports','POST',{...payload,requestId:'language-omitted',target:targetWithoutLanguage});assert.equal(defaultResponse.status,201);
   const defaultReceipt=await defaultResponse.json();await settled(defaultReceipt.id);assert.equal(runtime.engine.getDraft(owner,defaultReceipt.draftId).language,'English');
+  // 2026-11-19: shop and language may both be omitted; the first authorized connected shop is used and its default language.
+  const shopOmitted=await call('/imports','POST',{...payload,requestId:'shop-omitted',target:{publishing:payload.target.publishing}});assert.equal(shopOmitted.status,201);
+  const shopOmittedReceipt=await shopOmitted.json();await settled(shopOmittedReceipt.id);const defaultDraft=runtime.engine.getDraft(owner,shopOmittedReceipt.draftId);
+  assert.equal(defaultDraft.shop.id,'fixture-ph');assert.equal(defaultDraft.language,'English');assert.equal(shopOmittedReceipt.shopName,'PH fixture');
+  assert.equal((await call('/imports','POST',{...payload,requestId:'shop-omitted-bad-language',target:{language:'ไทย',publishing:payload.target.publishing}})).status,400);
   assert.equal(languageDrafts.size,advertised.length);assert.equal(runtime.engine.listTasks(owner).length,0);
   assert.equal((await call('/shops/fixture-ph/requirements')).status,200);
   const requirements=await (await call('/shops/fixture-ph/requirements?categoryId=5')).json();assert.equal(requirements.categoryId,5);assert.equal(requirements.connectionId,'fixture-ph');

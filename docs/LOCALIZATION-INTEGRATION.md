@@ -67,7 +67,7 @@
 | 允许操作 | 查询店铺、导入商品、查询记录、重试文案生成；不授权商品写入 |
 | 隔离约束 | 不可指定owner，不可访问其他接入方记录 |
 
-connectionId通过3.1查询获取。令牌只保存在调用方服务端。
+connectionId通过3.1查询获取，可省略（2026-11-19）：省略时中台使用该令牌授权范围内第一家已连接店铺建立草稿，运营可在审核页更换目标店铺。令牌只保存在调用方服务端。
 
 ## 3. 接口定义
 
@@ -174,8 +174,8 @@ POST重放同样返回201，不表示新建另一条记录。异步状态由响�
 | `product.dimensionsCm.height` | number | 是 | 大于零，单位厘米 |
 | `product.media` | object | 否 | 规格配图与图文详情扩展，结构见后文与内嵌Schema |
 | `target` | object | 是 | 目标市场对象 |
-| `target.connectionId` | string | 是 | 店铺查询返回的中台连接ID，非空且最长150字符；不是虾皮数字 `shop_id` |
-| `target.country` | string | 是 | 两位大写代码，如 `PH`、`SG`，必须与店铺实际市场一致 |
+| `target.connectionId` | string | 否 | 店铺查询返回的中台连接ID，非空且最长150字符；不是虾皮数字 `shop_id`。省略时使用授权范围内第一家已连接店铺（接入配置allowedShopIds顺序，全部店铺范围时取店铺查询首项），运营可在审核页更换 |
+| `target.country` | string | 否 | 两位大写代码，如 `PH`、`SG`；提供时必须与目标店铺实际市场一致，省略时按店铺region |
 | `target.language` | string | 否 | 省略时使用目标店铺默认语言； 非空，最长80字符，必须是所选店铺supportedLanguages中的原值，如English、ไทย、繁體中文；不接受en等代码、前后空格或任意字符串 |
 | `target.publishing` | object | 是 | 目标市场发布资料，字段见3.2.5；与来源快照隔离保存，不接受原始Shopee任意请求透传 |
 
@@ -207,7 +207,7 @@ POST重放同样返回201，不表示新建另一条记录。异步状态由响�
 4. 目标保存按首层规格配图：同一首层选项须使用相同图片；提供配图时须覆盖全部首层选项。此项在保存前校验。
 5. 图片须可由服务端下载，来源可使用PNG、JPEG、WebP；中台上传虾皮前将WebP转JPEG，不接收image_id、base64、本地路径、带账号密码/显式端口的URL或内网地址。下载阶段拒绝重定向、非图片内容和超过8MB的文件。提供可直接下载的HTTPS URL，不依赖Cookie或额外鉴权请求头；URL须在任务完成前持续有效。
 6. textInImage不触发图片像素翻译；详情文字与图片为独立输入。
-7. target.country须与店铺region一致，target.language须在该店铺supportedLanguages中；币种来自店铺，不接受target.currency。非法语言不会创建草稿或启动生成。
+7. 提供target.country时须与店铺region一致；提供target.language时须在目标店铺（含省略connectionId时的默认店铺）supportedLanguages中，省略时用店铺默认语言；审核页更换店铺后，原语言不适用于新店铺时改用新店铺默认语言；币种来自店铺，不接受target.currency。非法语言不会创建草稿或启动生成。
 8. sourceSystem须与令牌配置一致；sourceProductId不是远端商品ID。
 9. 导入限制是统一约束，不代表符合所有地区的目标保存规则。
 
@@ -551,7 +551,7 @@ HTTP 200。除以下字段外，其余字段与3.2.5一致：
 
 ### 6.1 统一结构与动态约束
 
-第3节及附录Schema是中台接入结构，不等同于Shopee原始发布请求。connectionId决定目标店铺；country仅做一致性校验；language不改变店铺、币种或平台规则。真实条件必填字段由中台内部读取目标店铺、类目和物流规则判断，不复制来源市场ID，不把PH单店验证推广到其他市场。
+第3节及附录Schema是中台接入结构，不等同于Shopee原始发布请求。connectionId决定初始目标店铺（省略时取默认店铺，审核页可更换；更换会清空类目、品牌、属性、物流与仓位并重新适配，币种不同时清空售价）；country仅做一致性校验；language不改变店铺、币种或平台规则。真实条件必填字段由中台内部读取目标店铺、类目和物流规则判断，不复制来源市场ID，不把PH单店验证推广到其他市场。
 
 | 发布资料 | 导入字段及类型 | 发布必填性 / 判定依据 |
 | --- | --- | --- |
@@ -1093,8 +1093,6 @@ JSON Schema Draft 2020-12。用于结构校验；SKU唯一、规格维度、素�
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "connectionId",
-        "country",
         "publishing"
       ],
       "properties": {
