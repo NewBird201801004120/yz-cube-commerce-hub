@@ -22,6 +22,7 @@ export const localizationApi={
  draft:(id:string)=>api<MarketDraft>(`/localization/drafts/${encodeURIComponent(id)}`),
  createDraft:(sourceId:string,shopId:string)=>api<MarketDraft>('/localization/drafts',{method:'POST',body:JSON.stringify({sourceId,shopId})}),
  save:(draft:MarketDraft)=>api<MarketDraft>(`/localization/drafts/${draft.id}`,{method:'PUT',body:JSON.stringify(draft)}),
+ changeShop:(id:string,shopId:string,revision:number)=>api<MarketDraft>(`/localization/drafts/${id}/shop`,{method:'POST',body:JSON.stringify({shopId,revision})}),
  localize:(id:string)=>api<MarketDraft>(`/localization/drafts/${id}/localize`,{method:'POST',body:'{}'}),
  metadata:(shopId:string,categoryId?:number)=>api<MarketMetadata>(`/localization/shops/${shopId}/metadata${categoryId?`?categoryId=${categoryId}`:''}`),
  preview:(id:string)=>api<PreviewResult>(`/localization/drafts/${id}/preview`,{method:'POST',body:'{}'}),
