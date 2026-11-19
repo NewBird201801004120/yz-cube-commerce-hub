@@ -26,12 +26,35 @@ export class LocalizationService {
  readonly engine=new LocalizationEngine(resolve(process.env.LOCALIZATION_DATA_DIR||'.local/localization'));
  readonly content:LocalizationContent;
  private adapting=new Map<string,Promise<{draft:ReturnType<LocalizationEngine['getDraft']>;issues:string[]}>>();
- constructor(private platform:LocalizationPlatform,listing:ListingService){this.content=new LocalizationContent(listing);}
+ constructor(private platform:LocalizationPlatform,listing:ListingService,@Optional() private team?:TeamShopClient){this.content=new LocalizationContent(listing);}
+ private sourceSync=new Map<string,Promise<ReturnType<LocalizationEngine['listSources']>>>();
+ async sources(ctx:LocalizationContext){
+  if(!this.team)return this.engine.listSources(ctx.owner);
+  const key=ctx.owner+':'+ctx.sessionId,active=this.sourceSync.get(key);if(active)return active;
+  const work=(async()=>{
+   const rows=await this.team!.reviewRead(ctx.sessionId!,'/sources');
+   if(!Array.isArray(rows))throw new BadRequestException('商品来源读取失败，请刷新重试');
+   const existing=new Set(this.engine.listSources(ctx.owner).map(s=>s.id));
+   for(const raw of rows){
+    if(existing.has(raw.id))continue;
+    const source=structuredClone(raw),mapped=new Map<string,string>();
+    for(const url of new Set<string>([...source.images,...(source.media?.assets||[]).map((a:any)=>a.url)])){
+     if(/^\/api\/v1\/localization\/assets\/[a-f0-9-]{36}$/.test(url))mapped.set(url,this.content.store(ctx.owner,await this.team!.reviewRead(ctx.sessionId!,url.replace('/api/v1/localization',''),true)));
+    }
+    source.images=source.images.map((url:string)=>mapped.get(url)||url);
+    if(source.media)for(const asset of source.media.assets)asset.url=mapped.get(asset.url)||asset.url;
+    this.engine.ensureImportedSource(ctx.owner,source,source.id,source.createdAt);
+    if(source.publishing){try{this.engine.attachSourcePublishing(ctx.owner,source.id,source.publishing);}catch(error){if(!(error instanceof BadRequestException))throw error;this.engine.markSourcePublishingIssue(ctx.owner,source.id);}}
+    existing.add(source.id);
+   }
+   return this.engine.listSources(ctx.owner);
+  })().finally(()=>this.sourceSync.delete(key));this.sourceSync.set(key,work);return work;
+ }
  publisher(ctx:LocalizationContext){return this.platform.publisher(ctx,async url=>{const match=url.match(/^\/api\/v1\/localization\/assets\/([a-f0-9-]{36})$/);if(!match)throw new BadRequestException('图片地址无效');return this.content.asset(ctx.owner,match[1]).bytes;});}
  async create(ctx:LocalizationContext,sourceId:string,shopId:string,language?:string,purpose:'original'|'localized'='localized'){const shop=(await this.platform.shops(ctx)).find(s=>s.id===shopId&&s.status==='CONNECTED');if(!shop)throw new BadRequestException('请选择连接正常的目标店铺');return this.engine.createDraft(ctx.owner,sourceId,shop,language,purpose);}
  async changeShop(ctx:LocalizationContext,id:string,shopId:string,revision:number){const shop=(await this.platform.shops(ctx)).find(s=>s.id===shopId&&s.status==='CONNECTED');if(!shop)throw new BadRequestException('请选择连接正常的目标店铺');const changed=this.engine.changeDraftShop(ctx.owner,id,shop,revision);return changed.revision===revision?changed:(await this.adapt(ctx,id)).draft;}
  private translating=new Map<string,Promise<ReturnType<LocalizationEngine['getDraft']>>>();
- async localize(ctx:LocalizationContext,id:string){const key=ctx.owner+':'+id;const active=this.translating.get(key);if(active)return active;const work=(async()=>{const d=this.engine.getDraft(ctx.owner,id);if(d.purpose==='original')throw new BadRequestException('原文上架版本不能转译，请从商品本地化创建独立版本');if(this.engine.listTasks(ctx.owner).some(t=>t.draftId===id&&(t.status!=='failed'||t.remoteId)))throw new BadRequestException('此版本已有发布任务，不能重新生成文案');if(!supportedLanguages(d.shop.language,d.shop.region).includes(d.language))throw new BadRequestException('目标语言不适用于当前店铺市场，请重新选择');const source=this.engine.getSource(ctx.owner,d.sourceId);const patch=await (source.sourceSystem==='fastmoss-selection'?this.content.selectionCopy(source,d):this.content.localize(source,d));this.engine.updateDraft(ctx.owner,id,{...patch,localizedAt:new Date().toISOString()},d.revision);return (await this.adapt(ctx,id)).draft;})().finally(()=>this.translating.delete(key));this.translating.set(key,work);return work;}
+ async localize(ctx:LocalizationContext,id:string){const key=ctx.owner+':'+id;const active=this.translating.get(key);if(active)return active;const work=(async()=>{const d=this.engine.getDraft(ctx.owner,id);if(d.purpose==='original')throw new BadRequestException('原文上架版本不能转译，请从商品本地化创建独立版本');if(this.engine.listTasks(ctx.owner).some(t=>t.draftId===id&&(t.status!=='failed'||t.remoteId)))throw new BadRequestException('此版本已有发布任务，不能重新生成文案');if(!supportedLanguages(d.shop.language,d.shop.region).includes(d.language))throw new BadRequestException('目标语言不适用于当前店铺市场，请重新选择');const source=this.engine.getSource(ctx.owner,d.sourceId);const patch=await (source.sourceSystem==='fastmoss-selection'?this.content.selectionCopy(source,d):this.content.localize({...source,parameters:source.sourceSystem==='shopee-shop'?Object.fromEntries(Object.entries(source.parameters).filter(([key])=>!key.startsWith('来源'))):source.parameters,title:d.title,description:d.description,specificationNames:d.specificationNames,variants:d.variants.map(v=>({sku:v.sku,options:v.options})),weightKg:d.weightKg??undefined,dimensionsCm:Object.values(d.dimensionsCm).every(v=>typeof v==='number')?d.dimensionsCm as {length:number;width:number;height:number}:undefined},d));this.engine.updateDraft(ctx.owner,id,{...patch,localizedAt:new Date().toISOString()},d.revision);return (await this.adapt(ctx,id)).draft;})().finally(()=>this.translating.delete(key));this.translating.set(key,work);return work;}
  async adapt(ctx:LocalizationContext,id:string){const key=ctx.owner+':'+id;const running=this.adapting.get(key);if(running)return running;const work=this.adaptOnce(ctx,id).finally(()=>this.adapting.delete(key));this.adapting.set(key,work);return work;}
  private async adaptOnce(ctx:LocalizationContext,id:string){const draft=this.engine.getDraft(ctx.owner,id);
   if(this.engine.listTasks(ctx.owner).some(t=>t.draftId===id&&(t.status!=='failed'||t.remoteId)))return {draft,issues:['此版本已有发布任务，请先核对结果，不能重新适配。']};
@@ -57,7 +80,7 @@ export class LocalizationService {
 @UseGuards(LocalizationGuard)
 export class LocalizationController {
  constructor(private service:LocalizationService,private platform:LocalizationPlatform){}
- @Get('sources') sources(@Req() r:LocalizationRequest){return this.service.engine.listSources(r.localization.owner);}
+ @Get('sources') sources(@Req() r:LocalizationRequest){return this.service.sources(r.localization);}
  @Get('shops') shops(@Req() r:LocalizationRequest){return this.platform.shops(r.localization);}
  @Get('shops/:id/metadata') metadata(@Req() r:LocalizationRequest,@Param('id') id:string,@Query('categoryId') categoryId?:string){if(categoryId&&!/^[1-9]\d{0,14}$/.test(categoryId))throw new BadRequestException('类目编号无效');return this.platform.metadata(r.localization,id,categoryId?Number(categoryId):undefined);}
  @Get('drafts') drafts(@Req() r:LocalizationRequest){return this.service.engine.listDrafts(r.localization.owner);}

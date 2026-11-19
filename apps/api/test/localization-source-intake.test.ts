@@ -45,7 +45,7 @@ test('source-only requests persist without AI or drafts, preserve replay and iso
   assert.equal(original.title,'收纳盒');assert.deepEqual(original.images,request.product.images);
   engine.updateDraft(owner,english.id,{title:'Translated English'},english.revision);
   assert.equal(engine.getDraft(owner,original.id).title,'收纳盒');assert.equal(engine.getDraft(owner,thai.id).title,'收纳盒');
-  assert.throws(()=>engine.createDraft(owner,source.id,{...ph,currency:'SGD'}),/SGD/);
+  const cross=engine.createDraft(owner,source.id,{...ph,id:'sg',currency:'SGD'});assert.ok(cross.variants.every(v=>v.price===null));assert.deepEqual(cross.variants.map(v=>v.stock),[1,0]);assert.equal(engine.createDraft(owner,source.id,{...ph,id:'sg',currency:'SGD'}).id,cross.id);
   assert.throws(()=>engine.createDraft(owner,source.id,ph,'ไทย'),/语言/);
   ({engine,integration}=boot());assert.equal(integration.get(client,receipt.id).status,'received');assert.equal(engine.listSources(owner).length,1);assert.equal(engine.createDraft(owner,source.id,ph,'English','localized').id,english.id);assert.equal(engine.getDraft(owner,english.id).title,'Translated English');assert.equal(aiCalls,0);
  }finally{rmSync(dir,{recursive:true,force:true});}

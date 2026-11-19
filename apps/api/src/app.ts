@@ -1,3 +1,4 @@
+import {LocalizationShopProductsController,LocalizationShopProductsService} from './localization-shop-products';
 import {VideoController,VideoService} from './tools/short-video/video';
 import {ProductionVideoClient} from './tools/short-video/production-client';
 import {SelectionController} from './tools/selection/controller';
@@ -36,7 +37,7 @@ class ErrorFilter implements ExceptionFilter {
     res.status(status).json({diagnostic,code:error instanceof PlatformError?error.code:`HTTP_${status}`,message,requestId:res.getHeader('X-Request-Id')});
   }
 }
-@Module({imports:[ScheduleModule.forRoot()],controllers:[VideoController,SelectionController,VideoSettingsController,LocalizationReceiptsController,LocalizationReceiptsDevelopmentController,HealthController,AuthController,ShopsController,DevelopmentController,ListingController,LocalizationController,LocalizationDevelopmentController,LocalizationIntegrationController],providers:[VideoService,ProductionVideoClient,{provide:'VIDEO_SHOP_CLIENT',useExisting:ProductionVideoClient},SelectionService,VideoSettingsService,Config,Database,Auth,AdminGuard,ShopeeClient,Shops,DevelopmentGuard,ListingService,ListingGuard,LocalizationService,LocalizationGuard,LocalizationPlatform,LocalizationIntegrationService,LocalizationIntegrationGuard]})
+@Module({imports:[ScheduleModule.forRoot()],controllers:[LocalizationShopProductsController,VideoController,SelectionController,VideoSettingsController,LocalizationReceiptsController,LocalizationReceiptsDevelopmentController,HealthController,AuthController,ShopsController,DevelopmentController,ListingController,LocalizationController,LocalizationDevelopmentController,LocalizationIntegrationController],providers:[LocalizationShopProductsService,VideoService,ProductionVideoClient,{provide:'VIDEO_SHOP_CLIENT',useExisting:ProductionVideoClient},SelectionService,VideoSettingsService,Config,Database,Auth,AdminGuard,ShopeeClient,Shops,DevelopmentGuard,ListingService,ListingGuard,LocalizationService,LocalizationGuard,LocalizationPlatform,LocalizationIntegrationService,LocalizationIntegrationGuard]})
 export class AppModule {}
 export async function createApp(){
   const app=await NestFactory.create<NestExpressApplication>(AppModule,{logger:['error','warn'],bodyParser:false});

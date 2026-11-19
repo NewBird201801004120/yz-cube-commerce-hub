@@ -10,7 +10,11 @@ export type ListingImage={market?:string;language?:string;jobId:string;slotId:st
 export type LocalizationReceipt={origin?:'local'|'central';id:string;requestId:string;status:'received'|'localizing'|'awaiting_review'|'localization_failed';localizationError?:string;reviewSourceId?:string;sourceId:string;draftId:string;reviewPath:string;country:string;language:string;createdAt:string;title:string;sourceSystem:string;sourceProductId:string;shopName:string|null;currency?:string;publishTasks:{id:string;status:string;stage:string;remoteId?:string;error?:string}[]};
 export type LocalizationReceipts={records:LocalizationReceipt[];environment:'central'|'team'|'local';reviewOrigin?:string};
 export const publishStatus:Record<string,string>={preparing:'准备发布',creating:'正在创建商品',uncertain:'创建结果待核对',created:'商品已创建，后续步骤未完成',completing:'正在补全商品',succeeded:'发布完成',failed:'未完成'};
+export type ShopProduct={key:string;shopId:string;shopName:string;region:string;itemId:string;title:string;image?:string;status:string;currency:string;price?:number;stock?:number};
+export type ShopProducts={warnings?:string[];items:ShopProduct[];nextOffset:number|null;hasMore:boolean};
 export const localizationApi={
+ shopProducts:(shopId='',offset=0,pageSize=20)=>api<ShopProducts>(`/localization/shop-products?${new URLSearchParams({...(shopId?{shopId}:{}),offset:String(offset),pageSize:String(pageSize)})}`),
+ importShopProduct:(shopId:string,itemId:string)=>api<SourceProduct>(`/localization/shop-products/${encodeURIComponent(shopId)}/${encodeURIComponent(itemId)}/import`,{method:'POST',body:'{}'}),
  adapt:(id:string)=>api<{draft:MarketDraft;issues:string[]}>(`/localization/drafts/${id}/adapt`,{method:'POST',body:'{}'}),
  matchCategory:(id:string)=>api<{draft:MarketDraft;match:{id:number;name:string}|null;status:string}>(`/localization/drafts/${id}/match-category`,{method:'POST',body:'{}'}),
  receiptSource:(id:string)=>api<SourceProduct>(`/localization/receipts/${encodeURIComponent(id)}/source`,{method:'POST',body:'{}'}),
