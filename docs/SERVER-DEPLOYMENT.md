@@ -1,3 +1,11 @@
+# 2026-11-19 仿真接入状态追踪
+
+Nginx接收路径 `/api/v1/localization/integration/imports` 增加专用状态日志 `/var/log/nginx/yz-localization-intake.log`。仅记录时间、Nginx/上游追踪编号、HTTP方法、路径、HTTP状态、上游状态与耗时，不记录查询串、头、Cookie、IP、令牌或商品正文。OAuth回调继续禁止访问日志。
+
+部署时先将 `deployment/server/nginx-localization-intake-log.conf` 安装至 `/etc/nginx/conf.d/`（http上下文），再安装新版integration snippet；通过 `nginx -t` 后reload，无需重启应用。日志应随Nginx既有轮换策略轮换。历史请求无法追溯，不能用新增日志推定此前请求成功或失败。相同requestId的幂等重放仍返回原记录，不产生新记录或新消息。
+
+---
+
 # 2026-11-19 消息提醒与前端结构更新
 
 本次使用完整 Git release 构建并同时更新核心 API、主控制台、本地化 API、本地化控制台；运行代码以 `/opt/yz-commerce/current/REVISION` 为准。下方较早的单文件热修、未部署功能说明均为历史记录。
