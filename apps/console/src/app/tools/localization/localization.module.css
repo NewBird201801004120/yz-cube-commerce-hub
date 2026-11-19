@@ -17,3 +17,18 @@
 .syncError{color:#a36028}.syncError:before{background:#b77b46}
 .recordsTable .badge{font-size:10px;padding:3px 6px;white-space:nowrap}
 @media(max-width:600px){.recordsTable{display:block;min-width:0;width:100%}.recordsTable thead{display:none}.recordsTable tbody{display:grid;gap:16px}.recordsTable tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border:1px solid var(--line);border-radius:8px;padding:14px;gap:12px}.recordsTable td{display:block;border:0;padding:0;width:auto!important;min-width:0;max-width:none;overflow:visible;white-space:normal}.recordsTable td:first-child{grid-column:1/-1}.recordsTable strong{-webkit-line-clamp:3}.recordsTable td[data-label]:before{content:attr(data-label);display:block;font-size:10px;color:var(--muted);margin-bottom:4px}.recordsTable td:nth-child(6){grid-column:1/-1}.recordsTable .operation{position:static;box-shadow:none;grid-column:1/-1;background:transparent}.recordsTable tr:hover td{background:transparent}.recordsTable .actions{flex-wrap:wrap}.recordsTable .badge{font-size:11px}.recordFilters{margin-bottom:24px}}
+
+.selectionReference { display: grid; grid-template-columns: 84px minmax(0,1fr); align-items: start; gap: 14px; }
+.selectionReference h3 { font-size: 14px; margin-bottom: 4px; }
+.selectionReference p { overflow-wrap: anywhere; }
+.selectionReferenceImage { width: 84px; }
+.selectionLinks, .selectionHint { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
+.selectionLinks { margin-top: 6px; }
+.selectionHint { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; color: var(--muted); }
+.selectionLinks a, .selectionHint a { color: var(--wine); text-decoration: underline; text-underline-offset: .18em; }
+.selectionVariants, .selectionDimensions { display: grid; gap: 10px; min-width: 0; }
+.selectionDimensions > div { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.selectionDimensions label { display: grid; align-items: start; gap: 5px; }
+.selectionVariants .variants { width: 100%; min-width: 720px; table-layout: auto; }
+.selectionVariants td input { width: 100%; min-width: 108px; }
+.selectionVariants td:first-child input { min-width: 160px; }

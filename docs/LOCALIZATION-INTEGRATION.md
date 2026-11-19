@@ -424,3 +424,7 @@ curl --fail "$API_BASE$IMAGE_PATH" \
 ```
 
 imagePath是受鉴权的服务端下载接口，不是匿名公开图片URL，不能直接放到浏览器img或商品接收product.images中。仿真服务端下载后可上传到自己的可访问图片存储，再使用该HTTPS URL展示或提交product.images。不得把专用令牌放进URL、浏览器或前端代码。图片重生成会更新同一槽位的结果，需固定成品时应下载保存；中台应用到市场版本时保存独立图片副本，后续重生成不改变已保存的版本图片。
+
+## v1 兼容说明
+
+旧版 `schemaVersion: 1` 请求的 `target.connectionId`、`target.country`、`target.language` 可省略：服务端沿用已授权店铺默认值，国家由店铺确定，语言采用店铺默认语言；指定国家时必须与所选店铺匹配。新接入仍使用本文件的 `schemaVersion: 2` 源商品契约，在中台选择目标店铺和语言。两种版本均须完整提供商品、售价与库存资料。

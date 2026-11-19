@@ -1,8 +1,9 @@
-import {BadRequestException, Controller, Get, Injectable, OnModuleInit, Optional, Param, Post, Body, Req, ServiceUnavailableException} from '@nestjs/common';
+import {BadRequestException, Controller, Get, Injectable, OnModuleInit, Optional, Inject, UnauthorizedException, Param, Post, Body, Req, ServiceUnavailableException} from '@nestjs/common';
 import type {Request} from 'express';
 import {randomUUID,createHash} from 'crypto';
 import {mkdir, readFile, writeFile, rename} from 'fs/promises';
-import {resolve} from 'path';
+import {resolve,dirname} from 'path';
+import {Auth} from '../../auth';
 import OSS from 'ali-oss';
 import {VideoSettingsService} from './settings';
 import {TeamShopClient} from '../../team-client';
@@ -10,7 +11,7 @@ import {productDescriptionText, type ProductDescription} from './product-descrip
 
 type Publication={status:string; failureKind?:'TRANSCODING'|'VIDEO_INVALID'; uploadId?:string; expected:unknown[]|null; urls?:string[]; error?:string};
 type Job = {publication?:Publication; id:string; owner:string; shopId:string; itemId:string; itemName:string; createdAt:string; status:string; prompt?:string; taskId?:string; objectKey?:string; error?:string};
-const store = resolve(process.cwd(), '.local/short-video-jobs.json');
+const store = resolve(process.env.VIDEO_JOBS_FILE||resolve(process.cwd(), '.local/short-video-jobs.json'));
 export function recoverInterruptedPublication(publication:Publication){
  if(publication.status==='UPLOADING'){publication.status='UNKNOWN';publication.error='上传中断，结果待确认，请勿重复上传';}
  else if(publication.status==='APPLYING'){publication.status='VERIFY_PENDING';publication.error='关联中断，结果待确认，请先核验商品，勿重复提交';}
@@ -18,11 +19,11 @@ export function recoverInterruptedPublication(publication:Publication){
 @Injectable()
 export class VideoService implements OnModuleInit {
  private jobs:Job[]=[]; private running=new Set<string>(); private writes=Promise.resolve();
- constructor(private team:TeamShopClient,@Optional() private videoSettings?:VideoSettingsService){}
+ constructor(@Inject('VIDEO_SHOP_CLIENT') private team:Pick<TeamShopClient,'me'|'read'|'video'|'videoCapabilities'>,@Optional() private videoSettings?:VideoSettingsService,@Optional() private auth?:Auth){}
  async onModuleInit(){try{this.jobs=JSON.parse(await readFile(store,'utf8'));}catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT') throw e;} for(const job of this.jobs) if(job.publication)recoverInterruptedPublication(job.publication); for(const job of this.jobs) if(job.status==='SUBMITTING'){job.status='SUBMISSION_UNKNOWN';job.error='提交结果未确认，请先检查百炼任务记录，避免重复计费';} await this.save(); setInterval(()=>{for(const job of this.jobs) if(['PENDING','RUNNING','SAVING'].includes(job.status)) void this.advance(job);},15000).unref();}
- private async save(){this.writes=this.writes.catch(()=>{}).then(async()=>{await mkdir(resolve(process.cwd(),'.local'),{recursive:true,mode:0o700});const tmp=store+'.tmp';await writeFile(tmp,JSON.stringify(this.jobs,null,2),{mode:0o600});await rename(tmp,store);});return this.writes;}
+ private async save(){this.writes=this.writes.catch(()=>{}).then(async()=>{await mkdir(dirname(store),{recursive:true,mode:0o700});const tmp=store+'.tmp';await writeFile(tmp,JSON.stringify(this.jobs,null,2),{mode:0o600});await rename(tmp,store);});return this.writes;}
  private config(kind:'analysis'|'video'|'storage'='video'){const settings=this.videoSettings||(this.videoSettings=new VideoSettingsService()),c=settings.runtime(kind);return {key:c.apiKey,base:c.baseUrl,analysisModel:c.analysisModel,videoModel:c.videoModel,get oss(){return new OSS({region:c.ossRegion,bucket:c.ossBucket,accessKeyId:c.ossAccessKeyId,accessKeySecret:c.ossAccessKeySecret,secure:true,authorizationV4:true});}};}
- private async user(req:Request){const u=await this.team.me(req.cookies?.yz_team) as {email:string};return u.email;}
+ private async user(req:Request){if(this.auth){const session=await this.auth.session(req);if(!session||session.user.role!=='ADMIN')throw new UnauthorizedException('请先登录中台管理员账号');req.cookies={...req.cookies,yz_team:session.userId};return session.user.email;}const u=await this.team.me(req.cookies?.yz_team) as {email:string};return u.email;}
  private publicJob(job:Job){const {owner,taskId,...result}=job;void owner;void taskId;return result;}
  async list(req:Request){const owner=await this.user(req);return this.jobs.filter(j=>j.owner===owner).map(j=>this.publicJob(j)).reverse();}
  async analyze(req:Request,b:{shopId?:unknown;itemId?:unknown}){

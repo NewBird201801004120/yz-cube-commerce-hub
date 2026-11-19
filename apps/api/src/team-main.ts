@@ -1,3 +1,5 @@
+import {SelectionController} from './tools/selection/controller';
+import {SelectionService} from './tools/selection/selection';
 import {VideoSettingsController,VideoSettingsService} from './tools/short-video/settings';
 import {LocalizationReceiptsController} from './localization-receipts';
 import {LocalizationIntegrationController,LocalizationIntegrationGuard,LocalizationIntegrationService,integrationServerRequest} from './localization-integration';
@@ -31,7 +33,7 @@ class TeamLocalController {
 }
 @Catch()
 class TeamErrors implements ExceptionFilter{catch(e:unknown,h:ArgumentsHost){h.switchToHttp().getResponse<Response>().status(e instanceof HttpException?e.getStatus():502).json({message:e instanceof HttpException?e.message:'无法连接团队服务，请检查网络后重试',diagnostic:safePlatformDiagnostic(e instanceof HttpException?(e.getResponse() as {diagnostic?:unknown})?.diagnostic:undefined)});}}
-@Module({controllers:[VideoSettingsController,LocalizationIntegrationController,LocalizationReceiptsController,TeamLocalController,ListingController,LocalizationController,VideoController],providers:[VideoSettingsService,LocalizationIntegrationGuard,LocalizationIntegrationService,TeamShopClient,ListingService,ListingGuard,LocalizationService,LocalizationGuard,LocalizationPlatform,VideoService]})
+@Module({controllers:[SelectionController,VideoSettingsController,LocalizationIntegrationController,LocalizationReceiptsController,TeamLocalController,ListingController,LocalizationController,VideoController],providers:[{provide:'VIDEO_SHOP_CLIENT',useExisting:TeamShopClient},SelectionService,VideoSettingsService,LocalizationIntegrationGuard,LocalizationIntegrationService,TeamShopClient,ListingService,ListingGuard,LocalizationService,LocalizationGuard,LocalizationPlatform,VideoService]})
 class TeamLocalModule{}
 export async function createTeamApp(){
  const app=await NestFactory.create(TeamLocalModule,{logger:['error','warn']});app.use('/api/v1/listing/jobs',json({limit:'30mb'}));app.use('/api/v1/localization',json({limit:'12mb'}));app.use('/api/v1/development/localization',json({limit:'12mb'}));app.use(json({limit:'100kb'}));app.use(helmet({contentSecurityPolicy:false}));app.use(cookieParser());

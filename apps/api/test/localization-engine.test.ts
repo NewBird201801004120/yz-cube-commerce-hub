@@ -61,3 +61,10 @@ test('one-click start automatically completes listing without any record-page ac
  assert.equal(e.getTask('a',task.id).status,'succeeded');assert.equal(creates,1);assert.equal(completes,1);
  }finally{cleanup();}
 });
+
+test('operator can change the target shop before publishing; shop matches reset, prices kept only for the same currency',async()=>{const {engine:e,cleanup}=setup();try{const d=ready(e);const other={...shop,id:'shop-ph-2',shopId:'1936610132',shopName:'Fixture PH 2'};
+ const same=e.changeDraftShop('a',d.id,other,d.revision);assert.equal(same.shop.id,'shop-ph-2');assert.equal(same.language,'English');assert.equal(same.categoryId,null);assert.deepEqual(same.logistics,[]);assert.equal(same.marketConfirmed,false);assert.equal(same.variants[0].price,100);assert.equal(same.marketAdaptation,undefined);
+ assert.throws(()=>e.changeDraftShop('a',d.id,shop,d.revision));
+ const th=e.changeDraftShop('a',d.id,{...shop,id:'shop-th',region:'TH',currency:'THB',language:'ไทย'},same.revision);assert.equal(th.language,'ไทย');assert.equal(th.variants[0].price,null);
+ const back=e.changeDraftShop('a',d.id,shop,th.revision);const r=e.updateDraft('a',d.id,{categoryId:100,logistics:[{id:12,enabled:true}],variants:[{sku:'TRAY-A',options:['Blue'],price:100,stock:5}]},back.revision);const ok=e.updateDraft('a',d.id,{marketConfirmed:true,imagesReviewed:true},r.revision);
+ await e.publish('a',d.id,adapter(),ok.revision);assert.throws(()=>e.changeDraftShop('a',d.id,other,e.getDraft('a',d.id).revision));}finally{cleanup();}});
