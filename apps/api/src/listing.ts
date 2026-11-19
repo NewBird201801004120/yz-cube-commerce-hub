@@ -83,6 +83,7 @@ export class ListingService implements OnModuleInit{
  get(id:string,owner:string){return this.view(this.load(id,owner));}
  async create(raw:unknown,owner:string){
   const b=raw as Record<string,unknown>;if(!b||typeof b!=='object')throw new BadRequestException('任务参数无效');
+  if(typeof b.name!=='string'||!b.name.trim())throw new BadRequestException('请填写产品名称');
   const requestId=b.requestId===undefined?undefined:text(b.requestId,100);if(requestId!==undefined&&!/^[a-zA-Z0-9_-]{16,100}$/.test(requestId))throw new BadRequestException('请求标识无效');
   const {requestId:ignored,...payload}=b;void ignored;
   const digest=createHash('sha256').update(JSON.stringify(payload)).digest('hex'),key=JSON.stringify([owner,requestId||digest]);
@@ -101,7 +102,7 @@ export class ListingService implements OnModuleInit{
   const id=randomUUID();this.active.add(id);
   try{const primary=asset(b.primary,'primary'),images=supplements.map((s,i)=>asset(s,`image-${i+1}`));let size=primary.data.length+images.reduce((n,s)=>n+s.data.length,0);for(const d of documents)size+=typeof d?.data==='string'?d.data.length:0;if(size>28*MB)throw new BadRequestException('附件总大小不能超过 20MB');
    const docs:Document[]=[];for(let i=0;i<documents.length;i++)docs.push(await parameterFile(documents[i],`file-${i+1}`));
-   const j:Job={id,owner,requestId,requestDigest,sku:text(b.sku,150),brand:text(b.brand,100),visualBrief:text(b.visualBrief,2000),name:text(b.name,150,'未命名产品')||'未命名产品',market:text(b.market,80,'菲律宾'),language:text(b.language,80,'英语'),notes:text(b.notes,10000),count:count as number,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),status:'planning',primary,supplements:images,documents:docs,facts:[],skipped:[],slots:[]};this.save(j);void this.run(j,true);return this.view(j);
+   const j:Job={id,owner,requestId,requestDigest,sku:text(b.sku,150),brand:text(b.brand,100),visualBrief:text(b.visualBrief,2000),name:text(b.name,150),market:text(b.market,80,'菲律宾'),language:text(b.language,80,'英语'),notes:text(b.notes,10000),count:count as number,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),status:'planning',primary,supplements:images,documents:docs,facts:[],skipped:[],slots:[]};this.save(j);void this.run(j,true);return this.view(j);
   }catch(e){this.active.delete(id);throw e;}
  }
  private assertEditable(id:string){if(this.active.has(id)||[...this.reviewing].some(key=>JSON.parse(key)[0]===id))throw new ConflictException('请先停止任务并等待当前生成或检查完成后再删除');}

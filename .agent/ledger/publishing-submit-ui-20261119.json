@@ -1,0 +1,40 @@
+{
+  "task": {
+    "id": "publishing-submit-ui-20261119"
+  },
+  "goal": {
+    "primary": "提交上架loading与任务成功跳转，发布记录展示快照首图",
+    "acceptance": [
+      "提交中loading与防连点",
+      "收到任务后跳转发布记录",
+      "首图来自发布快照",
+      "不触发真实发布测试"
+    ],
+    "nonGoals": [
+      "不改发布API",
+      "不部署生产"
+    ]
+  },
+  "scope": {
+    "allowed_paths": [
+      "apps/console/src/app/tools/localization/product-workspace.tsx",
+      "apps/console/src/app/tools/localization/publishing/page.tsx",
+      "apps/console/src/app/tools/localization/publishing/publishing.module.css",
+      ".agent/ledger/publishing-submit-ui-20261119.json"
+    ]
+  },
+  "tier": {
+    "predicted": "T1"
+  },
+  "verification": {
+    "passed": [
+      "175 tests",
+      "typecheck",
+      "build",
+      "verify:baseline",
+      "Diff Gate",
+      "Chrome mock submit: loading+disabled+one request+redirect+54px snapshot thumbnail"
+    ],
+    "realProductWrites": 0
+  }
+}

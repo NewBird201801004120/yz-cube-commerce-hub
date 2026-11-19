@@ -94,7 +94,13 @@ export function adaptMarket(source:LocalizationSource,draft:LocalizationDraft,ra
  if(existing.length){
   for(const l of existing.filter(l=>l.enabled)){const channel=channels.find(c=>c.logistics_channel_id===l.id);if(!channel)issues.push(`物流 ${l.id} 不属于目标店铺`);else issues.push(...channelIssues(channel,l));}
   if(!existing.some(l=>l.enabled))issues.push('尚未启用商品物流渠道');
-  for(const c of channels.filter(c=>c.force_enable===true))if(!existing.some(l=>l.enabled&&l.id===c.logistics_channel_id))issues.push(`店铺强制启用物流 ${c.logistics_channel_name||c.logistics_channel_id} 尚未应用`);
+  const updated=structuredClone(existing);
+  for(const c of channels.filter(c=>c.force_enable===true))if(!existing.some(l=>l.enabled&&l.id===c.logistics_channel_id)){
+   const previous=existing.find(l=>l.id===c.logistics_channel_id),problems=channelIssues(c,previous);
+   if(problems.length)issues.push(...problems);
+   else{const l=updated.find(l=>l.id===c.logistics_channel_id);if(l)l.enabled=true;else updated.push({id:c.logistics_channel_id,enabled:true});}
+  }
+  if(JSON.stringify(updated)!==JSON.stringify(existing))patch.logistics=updated;
  }else{
   const safe=channels.filter(c=>c.enabled===true&&!channelIssues(c).length);
   const selected=safe.filter(c=>c.force_enable===true);

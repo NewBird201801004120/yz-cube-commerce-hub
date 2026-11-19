@@ -1,3 +1,23 @@
+# 2026-11-19 公网商品图片下载与原任务恢复
+
+本地DNS将OSS域名解析到代理Fake-IP 198.18.x.x，安全下载器正确拒绝保留地址。已通过受DevelopmentGuard保护的download_image操作在中央解析并锁定真实公网地址，保留HTTPS、禁内网、禁跳转、8MB与图片格式限制。另修复Node 22自动地址选择与固定IP lookup回调不兼容的问题。
+
+中央API仅替换localization-platform.js并重启API，健康检查200；在线文件SHA-256为d9a0c2162551d758123c73e102da6555f11a6cfcd7246c2e0a8b1aacc69fe2c9。原文件备份：/var/lib/yz-commerce/deploy-backups/localization-platform-20261119-image-dns.js。未部署后续本地审核状态展示与完成读回改动；该部分代码当前仅本地生效。
+
+公网实测首图成功下载86711字节；沿用原任务f53a39e4-f070-4476-94ee-48d0f9477030上传3张图片、创建FortCamHub商品42536858048并提交上架，远端状态REVIEWING，尚不能称为在售。未重复创建。原任务按实际状态修正为等待虾皮审核；本地恢复先核对远端，在审核中不重复写入，通过后才确认发布完成。
+
+---
+
+# 2026-11-19 本地真实发布路由修复
+
+已将 `/api/v1/development/localization/shops/` 从旧的4110未上架测试服务切换到当前正常API（4100），复用DevelopmentGuard、已授权店铺校验、真实product发布与远端幂等回执。未部署其他未提交代码、未改Token、未放宽虾皮规则。
+
+配置源：`scripts/nginx/localization-publishing.conf`；线上文件：`/etc/nginx/snippets/yz-localization-save-only.conf`（保留原include文件名，内容已切为正常发布）；备份：`/var/lib/yz-commerce/deploy-backups/localization-publishing-20261119.conf`。nginx -t通过并reload成功，配置SHA-256：`eb4a26f31226c47e3b133e9b5dc7119629067d1c6430b2414ae15e7089859805`。回滚时恢复该备份，nginx -t后reload。
+
+真实服务验证：FortCamHub、Home Monitor_PH资格检查均返回product路径、issues=[]；create/complete空请求均由正常接口返回400“商品操作无效”，不会写入商品。不代表已验证Shopee真实写权限；实际写权限以用户主动点击发布后的平台响应为准。本次没有创建或发布商品。
+
+---
+
 # 2026-11-17 完整商品接收校验更新
 
 当前本地化版本为`20261117-required-fields-02`，回滚版本为`20261117-adaptation-01`；核心网关仍为`20261117-category-gateway-01`。仅替换localization-integration.js与localization-integration-main.js，2个文件SHA-256检查通过，仅重启本地化API。

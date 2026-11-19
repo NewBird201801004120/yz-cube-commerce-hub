@@ -1,0 +1,45 @@
+{
+  "task": {
+    "id": "shop-product-images-20261119"
+  },
+  "goal": {
+    "primary": "店铺商品列表展示真实商品主图，核对已上架商品可读取",
+    "acceptance": [
+      "列表显示接口返回首图",
+      "缺图复用统一占位",
+      "真实店铺列表可读取41636858317，按最新状态UNLIST展示"
+    ],
+    "nonGoals": [
+      "不写入真实商品",
+      "不部署",
+      "不修改Listing核心"
+    ]
+  },
+  "scope": {
+    "allowed_paths": [
+      "apps/console/src/app/developer/page.tsx",
+      "apps/console/src/app/developer/products.module.css",
+      ".agent/ledger/shop-product-images-20261119.json"
+    ]
+  },
+  "tier": {
+    "predicted": "T1"
+  },
+  "verification": {
+    "required": [
+      "test",
+      "typecheck",
+      "verify:baseline",
+      "Diff Gate",
+      "浏览器图片展示核对"
+    ],
+    "passed": [
+      "179 tests",
+      "typecheck",
+      "verify:baseline",
+      "Diff Gate",
+      "Chrome真实接口：未上架列表可见41636858317，真实主图加载成功54px"
+    ],
+    "realProductWrites": 0
+  }
+}

@@ -62,7 +62,7 @@ test('volume restrictions require an understood unit and compare actual package 
 
 test('attribute failure stops brand pagination before any brand requests are sent',async()=>{
  const f=fixture();const team={...f.team,read:async(session:string,id:string,op:string,q:Record<string,string>)=>{if(op==='get_attribute_tree')throw new Error('attribute failed');return f.team.read(session,id,op,q);}};
- const p=new LocalizationPlatform(team as never);await assert.rejects(()=>p.rawMetadata({owner,sessionId:'session'},'shop',5),/attribute failed/);assert.equal(f.queries.filter(q=>q.op==='get_brand_list').length,0);
+ const p=new LocalizationPlatform(team as never);await assert.rejects(()=>p.rawMetadata({owner,sessionId:'session'},'shop',5),/商品属性读取暂时失败/);assert.equal(f.queries.filter(q=>q.op==='get_brand_list').length,0);
 });
 
 test('metadata display cache isolates sessions, checks shop status, and keeps publishing rules fresh',async()=>{
@@ -77,7 +77,7 @@ test('concurrent display/adaptation metadata reads coalesce and failures remain 
  const f=fixture();let fail=true,reads=0;
  const original=f.team.read;f.team.read=async(...args:Parameters<typeof original>)=>{reads++;if(fail)throw new Error('connection failed');await new Promise(resolve=>setTimeout(resolve,5));return original(...args);};
  const p=new LocalizationPlatform(f.team as never),ctx={owner,sessionId:'session'};
- await assert.rejects(p.rawMetadata(ctx,'shop',5),/connection failed/);fail=false;reads=0;
+ await assert.rejects(p.rawMetadata(ctx,'shop',5),/目标类目读取暂时失败/);fail=false;reads=0;
  const [a,b]=await Promise.all([p.metadata(ctx,'shop',5),p.rawMetadata(ctx,'shop',5)]);assert.equal(reads,5);a.categories.length=0;assert.equal((b.categories as any).category_list.length,1);
 });
 

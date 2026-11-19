@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["schemaVersion","snapshotId","governanceVersion","projectId","projectConfig","packs","git","integrity"],"properties":{"schemaVersion":{"const":1},"snapshotId":{"pattern":"^pol_[a-f0-9]{24}$"},"projectId":{"pattern":"^prj_[a-f0-9]{24}$"},"integrity":{"pattern":"^[a-f0-9]{64}$"}}}

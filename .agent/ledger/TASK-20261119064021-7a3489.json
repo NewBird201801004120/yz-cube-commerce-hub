@@ -1,0 +1,39 @@
+{
+  "task": {
+    "id": "TASK-20261119064021-7a3489"
+  },
+  "goal": {
+    "primary": "本地复用中央授权支持用户主动真实上架",
+    "acceptance": [
+      "默认真实链路可用",
+      "模拟模式仍禁止写入",
+      "发布检查和幂等恢复不绕过"
+    ],
+    "nonGoals": [
+      "不自动发布用户商品",
+      "不部署生产",
+      "不修改授权与Token"
+    ]
+  },
+  "scope": {
+    "modules": [
+      "scripts/team-dev.mjs",
+      "apps/api/src/team-main.ts",
+      "apps/api/test/team-local.test.ts",
+      "apps/console/src/app/tools/localization/product-workspace.tsx",
+      "docs/LOCALIZATION-LOCAL-INTEGRATION.md"
+    ]
+  },
+  "tier": {
+    "predicted": "T1"
+  },
+  "verification": {
+    "required": [
+      "test",
+      "typecheck",
+      "build",
+      "verify:baseline",
+      "Diff Gate"
+    ]
+  }
+}

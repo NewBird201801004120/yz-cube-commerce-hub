@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "governanceVersion": "2.1.0",
+  "profile": "medium",
+  "enabledPacks": [
+    "core/basic-engineering",
+    "core/git-safety",
+    "core/delivery-evidence",
+    "size/medium"
+  ],
+  "overrides": [],
+  "projectId": "prj_bf8fff80bc4138fc87cf8ffc",
+  "organizationId": "org_176fce2a27cc897612e5bf6e",
+  "policyRelease": {
+    "version": "2.1.0",
+    "digest": "e811733c849959154727014f7a18672ed92b765417d56e132f3a16a474f54772"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "evidenceId",
+    "taskId",
+    "contractId",
+    "policySnapshotId",
+    "baseCommit",
+    "headCommit",
+    "headTree",
+    "gate",
+    "checks",
+    "passed",
+    "integrity",
+    "workspaceHash",
+    "workspaceStable",
+    "requiredChecks",
+    "verificationCompleted",
+    "contractHash",
+    "snapshotHash"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "evidenceId": {
+      "pattern": "^evd_[a-f0-9]{24}$"
+    },
+    "integrity": {
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "workspaceHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "contractHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "snapshotHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "workspaceStable": {
+      "type": "boolean"
+    },
+    "verificationCompleted": {
+      "type": "boolean"
+    },
+    "requiredChecks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

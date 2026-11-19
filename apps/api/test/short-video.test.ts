@@ -1,8 +1,16 @@
-import {test} from 'node:test';
+import {test,after} from 'node:test';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import assert from 'node:assert/strict';
 import {VideoService} from '../src/tools/short-video/video';
 import {TeamShopClient} from '../src/team-client';
 import type {Request} from 'express';
+// Never allow a regression test to use the developer's saved cloud credentials.
+const previousSettingsDir=process.env.VIDEO_SETTINGS_DATA_DIR;
+const settingsDir=mkdtempSync(join(tmpdir(),'video-regression-settings-'));
+process.env.VIDEO_SETTINGS_DATA_DIR=settingsDir;
+after(()=>{if(previousSettingsDir===undefined)delete process.env.VIDEO_SETTINGS_DATA_DIR;else process.env.VIDEO_SETTINGS_DATA_DIR=previousSettingsDir;rmSync(settingsDir,{recursive:true,force:true});});
 
 test('video generation authenticates before checking configuration or reading a shop',async()=>{
  let reads=0;
@@ -16,7 +24,7 @@ test('video generation fails before submitting when cloud configuration is missi
  let reads=0;
  try {const team={me:async()=>({email:'test@example.test'}),read:async()=>{reads++;}} as unknown as TeamShopClient;
  const service=new VideoService(team);
- await assert.rejects(service.create({cookies:{}} as Request,{shopId:'s',itemId:'123',prompt:'商品视频'}),/配置百炼和 OSS/);
+ await assert.rejects(service.create({cookies:{}} as Request,{shopId:'s',itemId:'123',prompt:'商品视频'}),/AI 设置配置短视频/);
  assert.equal(reads,0);}finally{if(key!==undefined)process.env.DASHSCOPE_API_KEY=key;}
 });
 

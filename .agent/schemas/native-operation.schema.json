@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["schemaVersion","operationId","taskId","contractId","client","repositoryRoot","nonce","native","requestDigest"],"properties":{"schemaVersion":{"const":1},"client":{"enum":["codex","cursor","orca","git"]},"operationId":{"pattern":"^op_[a-f0-9]{24}$"},"nonce":{"pattern":"^[a-f0-9]{32}$"}}}

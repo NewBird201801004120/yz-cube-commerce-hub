@@ -1,0 +1,47 @@
+{
+  "task": {
+    "id": "TASK-20261119085343-532248"
+  },
+  "goal": {
+    "primary": "产品名称必填与运营导航整理",
+    "acceptance": [
+      "空白名称前后端拦截且不调用AI",
+      "名称标注必填并聚焦提示",
+      "登录与根首页进入店铺商品",
+      "商品管理首项店铺商品",
+      "店铺管理和授权记录归入统一系统设置"
+    ],
+    "nonGoals": [
+      "不生成付费图片",
+      "不修改已有任务",
+      "不改鉴权逻辑",
+      "不部署"
+    ]
+  },
+  "scope": {
+    "allowed_paths": [
+      "apps/api/src/listing.ts",
+      "apps/api/test/listing-required-name.test.ts",
+      "apps/console/src/app/tools/listing/page.tsx",
+      "apps/console/src/components/shell.tsx",
+      "apps/console/src/app/page.tsx",
+      "apps/console/src/app/login/page.tsx",
+      ".agent/project.yaml"
+    ],
+    "freezeException": "用户本轮明确要求修改Listing表单及接口名称校验，限定解除listing.ts与listing/page.tsx的旧协作冻结；engine、原测试与原型保持冻结",
+    "additionalRequest": "本轮追加导航排序、首页与设置分组要求"
+  },
+  "tier": {
+    "predicted": "T1"
+  },
+  "verification": {
+    "required": [
+      "test",
+      "typecheck",
+      "build",
+      "verify:baseline",
+      "Diff Gate",
+      "浏览器校验空名拦截及菜单与跳转"
+    ]
+  }
+}

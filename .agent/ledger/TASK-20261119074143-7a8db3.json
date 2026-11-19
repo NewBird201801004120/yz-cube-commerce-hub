@@ -1,0 +1,51 @@
+{
+  "task": {
+    "id": "TASK-20261119074143-7a8db3"
+  },
+  "goal": {
+    "primary": "修复公网图片被本地Fake-IP误拦截并恢复原任务",
+    "acceptance": [
+      "本地代理公网图片由中央安全下载",
+      "SSRF保护仍拒绝内网保留地址",
+      "任务图片检查点与幂等保持",
+      "原任务恢复不重复创建"
+    ],
+    "nonGoals": [
+      "不关闭SSRF保护",
+      "不更改图片内容或用户资料",
+      "不创建额外发布任务"
+    ]
+  },
+  "scope": {
+    "modules": [
+      "apps/api/src/localization-platform.ts",
+      "apps/api/test/localization-platform.test.ts",
+      "docs/SERVER-DEPLOYMENT.md",
+      "apps/api/src/localization-engine.ts",
+      "apps/api/test/localization-engine.test.ts",
+      "apps/console/src/app/tools/localization/publishing/page.tsx",
+      "apps/console/src/app/tools/localization/product-workspace.tsx"
+    ]
+  },
+  "tier": {
+    "predicted": "T2"
+  },
+  "verification": {
+    "required": [
+      "test",
+      "typecheck",
+      "build",
+      "verify:baseline",
+      "Diff Gate",
+      "真实图片下载",
+      "原任务恢复"
+    ],
+    "live": {
+      "imageBytes": 86711,
+      "originalTask": "f53a39e4-f070-4476-94ee-48d0f9477030",
+      "remoteId": "42536858048",
+      "remoteStatus": "REVIEWING",
+      "duplicateCreates": 0
+    }
+  }
+}

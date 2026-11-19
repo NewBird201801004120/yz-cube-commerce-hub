@@ -1,0 +1,47 @@
+{
+  "task": {
+    "id": "TASK-20261119085859-59e6f0"
+  },
+  "goal": {
+    "primary": "整合远程main最新代码与本地功能，推送main并部署生产",
+    "acceptance": [
+      "保留本地全部有效改动和远程FastMoss可选店铺功能",
+      "解决冲突并完整测试构建",
+      "main推送成功",
+      "生产服务更新和真实只读验收",
+      "保留凭据数据与可回滚版本"
+    ],
+    "nonGoals": [
+      "不发布或修改Shopee商品",
+      "不覆盖环境凭据",
+      "不改数据库结构"
+    ]
+  },
+  "scope": {
+    "allowed_paths": [
+      "apps/**",
+      "docs/**",
+      "scripts/**",
+      "deployment/**",
+      ".agent/**",
+      ".cursor/**",
+      ".github/**",
+      "AGENTS.md",
+      "CLAUDE.md"
+    ],
+    "freeze": "保留Listing engine和原测试以及原型冻结"
+  },
+  "tier": {
+    "predicted": "T2"
+  },
+  "verification": {
+    "required": [
+      "test",
+      "typecheck",
+      "build",
+      "verify:baseline",
+      "Diff Gate",
+      "生产健康登录接口与静态资源核验"
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "task": {
+    "id": "TASK-20261119083213-746065"
+  },
+  "goal": {
+    "primary": "发布记录同步远端真实上架状态，恢复前只读核对",
+    "acceptance": [
+      "刷新时查询created远端状态并更新记录",
+      "待确认及审核中10秒自动只读同步",
+      "恢复前核对成功和审核中不写入",
+      "真实商品41636858317只读核验NORMAL并已同步成功"
+    ],
+    "nonGoals": [
+      "不再次发布商品",
+      "不部署",
+      "不修改Listing核心"
+    ]
+  },
+  "scope": {
+    "allowed_paths": [
+      "apps/api/src/localization.ts",
+      "apps/api/test/localization-http.test.ts",
+      "apps/console/src/app/tools/localization/publishing/page.tsx"
+    ]
+  },
+  "tier": {
+    "predicted": "T1"
+  },
+  "verification": {
+    "required": [
+      "test",
+      "typecheck",
+      "build",
+      "verify:baseline",
+      "Diff Gate"
+    ]
+  }
+}

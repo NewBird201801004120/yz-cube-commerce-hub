@@ -8,7 +8,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createTeamApp} from '../src/team-main';
 import {LocalizationPlatform} from '../src/localization-platform';
-import {LocalizationService} from '../src/localization';
+import {LocalizationService,LocalizationController} from '../src/localization';
 import type {LocalizationPublisher} from '../src/localization-engine';
 
 test('localization HTTP: authentication, simulation source API boundary, independent drafts, preview, explicit publish, persisted task and recovery',async()=>{
@@ -18,7 +18,7 @@ test('localization HTTP: authentication, simulation source API boundary, indepen
  const platform=app.get(LocalizationPlatform),service=app.get(LocalizationService);let creates=0,completes=0;
  const shop={id:'fixture-ph',shopId:'fixture-001',shopName:'模拟测试店铺',region:'PH',currency:'PHP',language:'English',status:'CONNECTED'};
  platform.shops=async()=>[shop,{...shop,id:'fixture-th',region:'TH',currency:'THB',language:'ไทย'}];platform.capabilities=async()=>({path:'product' as const,issues:[],writePermission:'unverified',note:'fixture'});platform.validateMarket=async()=>[];platform.rawMetadata=async()=>({categories:{category_list:[{category_id:1,has_children:false}]},attributes:{list:[]},brands:{brand_list:[{brand_id:0,original_brand_name:'NoBrand'}]},logistics:{logistics_channel_list:[{logistics_channel_id:1,enabled:true,fee_type:'SIZE_INPUT'}]},limits:{},capabilities:{path:'product',issues:[]},categoryId:1,connectionId:'fixture-ph',fetchedAt:''});service.content.matchCategory=async()=>({id:1,name:'Fixture',path:'Fixture'});
- const publisher:LocalizationPublisher={capabilities:async()=>({path:'product',issues:[]}),prepare:async()=>({imageIds:['fixture']}),create:async()=>{creates++;return {remoteId:'999001'};},complete:async()=>{completes++;if(completes===1)throw Error('fixture partial failure');},reconcile:async()=>({status:'unknown'})};platform.publisher=()=>publisher;
+ const publisher:LocalizationPublisher={capabilities:async()=>({path:'product',issues:[]}),prepare:async()=>({imageIds:['fixture']}),create:async()=>{creates++;return {remoteId:'999001'};},complete:async()=>{completes++;if(completes===1)throw Error('fixture partial failure');},reconcile:async()=>({status:'unknown'})};platform.publisher=()=>publisher;platform.taskStatus=async()=> 'UNLIST';
  const call=async(path:string,method='GET',body?:unknown,cookie='')=>fetch(base+'/api/v1'+path,{method,headers:{...headers,...(cookie?{cookie}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});
  try{
   assert.equal((await call('/localization/sources')).status,401);
@@ -53,9 +53,38 @@ test('localization HTTP: authentication, simulation source API boundary, indepen
   let task=service.engine.getTask('operator@fixture.test',published.id);for(let i=0;i<40&&['preparing','creating','completing'].includes(task.status);i++){await new Promise(r=>setTimeout(r,5));task=service.engine.getTask('operator@fixture.test',published.id);}
   assert.equal(task.status,'created');assert.equal(task.remoteId,'999001');assert.equal(creates,1);
   await call(`/localization/jobs/${task.id}/resume`,'POST',{},cookie);for(let i=0;i<40;i++){task=service.engine.getTask('operator@fixture.test',task.id);if(task.status==='succeeded')break;await new Promise(r=>setTimeout(r,5));}assert.equal(task.status,'succeeded');assert.equal(creates,1);
+  assert.equal((await call(`/localization/jobs/${task.id}/resume`,'POST',{},cookie)).status,400);assert.equal(completes,2);
+  assert.equal((await call(`/localization/jobs/${task.id}/status`,'POST',{},cookie)).status,201);assert.equal(completes,2);
   await call(`/localization/drafts/${d.id}/publish`,'POST',{revision:preview.draft.revision,confirmed:true},cookie);assert.equal(creates,1);
   const raw=JSON.stringify(await (await call('/localization/jobs','GET',undefined,cookie)).json());assert.ok(!raw.includes('private-fixture-token'));
   assert.throws(()=>service.engine.getDraft('another@fixture.test',d.id));
   assert.equal((await call('/localization/assets','POST',{data:Buffer.from('not an image').toString('base64')},cookie)).status,400);
  }finally{await app.close();remote.close();await once(remote,'close');rmSync(dir,{recursive:true,force:true});}
+});
+
+test('preview distinguishes shop permission failure from product rules and still checks product',async()=>{
+ const draft={shop:{id:'shop'},sourceId:'source',media:{assets:[],variantImages:[],detailBlocks:[]}};
+ let checked=false;
+ const service:any={adapt:async()=>({draft,issues:[]}),engine:{validate:()=>[],getSource:()=>({})},platform:{capabilities:async()=>{throw {getStatus:()=>403,getResponse:()=>({message:'目标店铺不在本次保存测试范围'})};},validateMarket:async()=>{checked=true;return ['请补齐必填属性：Audio Compatibility'];}}};
+ const result=await LocalizationService.prototype.preview.call(service as any,{owner:'fixture'} as any,'draft');
+ assert.equal(checked,true);assert.equal(result.canPublish,false);
+ assert.ok(result.issues.some(issue=>issue.startsWith('店铺发布通道受限：')));
+ assert.ok(result.issues.includes('请补齐必填属性：Audio Compatibility'));
+ assert.ok(!result.issues.some(issue=>issue.includes('检查连接状态')));
+ service.platform.capabilities=async()=>({issues:[]}) as any;
+ service.platform.validateMarket=async()=>{throw Error('secret-provider-diagnostic');};
+ const unavailable=await LocalizationService.prototype.preview.call(service as any,{owner:'fixture'} as any,'draft');
+ assert.ok(unavailable.issues.some(issue=>issue.startsWith('商品市场规则检查未完成：')));
+ assert.ok(!JSON.stringify(unavailable).includes('secret-provider-diagnostic'));
+});
+
+test('retry reconciles remotely listed or reviewing items before any publication writes',async()=>{
+ for(const status of ['succeeded','reviewing','unlisted','unavailable']){
+  let resumed=0,reads=0;const original={status:'created',remoteId:'already-created',error:'stale status',stage:'完成规格与市场发布'};
+  const reconciled=status==='succeeded'?{...original,status:'succeeded',error:undefined,stage:'发布完成'}:status==='reviewing'?{...original,stage:'等待虾皮审核'}:original;
+  const controller:any={service:{engine:{getTask:()=>original,startResume:()=>{resumed++;return original;}},publisher:()=>({})},checkStatus:async()=>{reads++;if(status==='unavailable')throw Error('read unavailable');return reconciled;}};
+  const run=()=>LocalizationController.prototype.resume.call(controller,{localization:{owner:'operator'}} as any,'task');
+  if(status==='unavailable')await assert.rejects(run,/read unavailable/);else assert.deepEqual(await run(),reconciled);
+  assert.equal(reads,1);assert.equal(resumed,status==='unlisted'?1:0);
+ }
 });

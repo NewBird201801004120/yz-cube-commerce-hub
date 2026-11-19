@@ -1,0 +1,48 @@
+{
+  "task": {
+    "id": "TASK-20261119072624-b57097"
+  },
+  "goal": {
+    "primary": "减少单次发布检查的重复规则读取并修复瞬时失败处理",
+    "acceptance": [
+      "单次预览复用实时规则",
+      "下次预览和写入重新读取",
+      "只读瞬时失败至多重试一次",
+      "属性或物流读取失败明确区分且不丢资料"
+    ],
+    "nonGoals": [
+      "不跳过规则",
+      "不自动发布",
+      "不推送代码"
+    ]
+  },
+  "scope": {
+    "modules": [
+      "apps/api/src/localization-platform.ts",
+      "apps/api/src/localization.ts",
+      "apps/api/src/team-client.ts",
+      "apps/api/test/read-performance.test.ts",
+      "apps/api/test/localization-metadata.test.ts"
+    ]
+  },
+  "tier": {
+    "predicted": "T2"
+  },
+  "verification": {
+    "required": [
+      "test",
+      "typecheck",
+      "build",
+      "verify:baseline",
+      "Diff Gate",
+      "本地真实预览"
+    ],
+    "live": {
+      "draft": "f6f43357-a011-41c9-b268-b67b2f897bab",
+      "checks": 2,
+      "canPublish": true,
+      "issues": [],
+      "writes": 0
+    }
+  }
+}

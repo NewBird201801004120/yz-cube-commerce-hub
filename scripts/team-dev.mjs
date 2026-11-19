@@ -15,7 +15,7 @@ if(existsSync('.env.team'))process.loadEnvFile('.env.team');
 process.env.TEAM_API_ORIGIN||='https://commerce.aicbec.cn';
 // Validate environment and retain existing local integration tokens.
 const clientFile=configureLocalSimulation(root);
-process.env.LOCALIZATION_LOCAL_MODE='true';process.env.LOCALIZATION_DATA_DIR=resolve(root,'.local/localization');process.env.LISTING_DATA_DIR=resolve(root,'.local/listing');process.env.LOCALIZATION_INTEGRATIONS_FILE=clientFile;
+process.env.LOCALIZATION_LOCAL_MODE||='false';process.env.LOCALIZATION_DATA_DIR=resolve(root,'.local/localization');process.env.LISTING_DATA_DIR=resolve(root,'.local/listing');process.env.LOCALIZATION_INTEGRATIONS_FILE=clientFile;
 run(['install','--frozen-lockfile']);run(['--filter','@yz-cube/api','db:generate']);run(['--filter','@yz-cube/api','build']);
 const children=[];let stopping=false;
 function stop(code=0){if(stopping)return;stopping=true;for(const p of children)p.kill('SIGTERM');setTimeout(()=>process.exit(code),1000).unref();}

@@ -9,7 +9,7 @@ import {LocalizationDraft} from '../src/localization-engine';
 import {PlatformWriteError} from '../src/shopee-client';
 const draft=(id='shop'):LocalizationDraft=>({id:randomUUID(),owner:'operator@example.test',sourceId:randomUUID(),revision:1,shop:{id,shopId:'123',shopName:'Shop',region:'PH',currency:'PHP',language:'English'},language:'English',title:'Desk organizer',sellingPoints:['Two compartments'],description:'Two compartments',specificationNames:[],variants:[{sku:'ORG-1',options:[],price:299,stock:4}],weightKg:0.5,dimensionsCm:{length:20,width:10,height:8},categoryId:5,brandId:0,attributes:[],logistics:[{id:9,enabled:true}],images:['https://images.example.com/a.png'],marketConfirmed:true,imagesReviewed:true,createdAt:'',updatedAt:''});
 function fixture(){const dir=mkdtempSync(join(tmpdir(),'localization-platform-'));process.env.LOCALIZATION_DATA_DIR=dir;let creates=0,listed=0,initializations=0;let failCreate=false,failUnlist=false,failInit=false,itemStatus='UNLIST';const models:any[]=[];
- const service={read:async(_id:string,_actor:string,path:string)=>{switch(path.split('/').pop()){case 'get_shop_info':return {is_cb:false};case 'get_category':return {category_list:[{category_id:5,display_category_name:'Storage',has_children:false}]};case 'get_channel_list':return {logistics_channel_list:[{logistics_channel_id:9,logistics_channel_name:'Delivery',enabled:true}]};case 'get_item_limit':return {item_name_length_limit:{max_limit:100}};case 'get_brand_list':return {brand_list:[{brand_id:0,original_brand_name:'NoBrand'}]};case 'get_attribute_tree':return {list:[{category_id:5,attribute_tree:[]}]};case 'get_item_list':return {item:[],has_next_page:false};case 'get_item_base_info':return {item_list:[{item_id:12345,item_status:itemStatus}]};case 'get_model_list':return {model:models,tier_variation:models.length?[{}]:[]};default:throw Error(path);}},write:async(_id:string,_actor:string,path:string,body:any)=>{if(path.endsWith('add_item')){creates++;if(failCreate)throw new PlatformWriteError(true,'timeout');return {item_id:12345};}if(path.endsWith('init_tier_variation')){initializations++;if(failInit)throw new PlatformWriteError(true,'Fixture timeout',{upstreamCode:'error_server',upstreamRequestId:'1234567890abcdef1234567890abcdef'});models.splice(0,models.length,...body.model.map((m:any)=>({...m,price_info:[{original_price:m.original_price}]})));return {};}if(path.endsWith('unlist_item')){listed++;return failUnlist?{failure_list:[{item_id:12345,error:'denied'}]}:{success_list:[{item_id:12345}]};}throw Error('unexpected write');},audit:async()=>{}};
+ const service={read:async(_id:string,_actor:string,path:string)=>{switch(path.split('/').pop()){case 'get_shop_info':return {is_cb:false};case 'get_category':return {category_list:[{category_id:5,display_category_name:'Storage',has_children:false}]};case 'get_channel_list':return {logistics_channel_list:[{logistics_channel_id:9,logistics_channel_name:'Delivery',enabled:true}]};case 'get_item_limit':return {item_name_length_limit:{max_limit:100}};case 'get_brand_list':return {brand_list:[{brand_id:0,original_brand_name:'NoBrand'}]};case 'get_attribute_tree':return {list:[{category_id:5,attribute_tree:[]}]};case 'get_item_list':return {item:[],has_next_page:false};case 'get_item_base_info':return {item_list:[{item_id:12345,item_status:itemStatus}]};case 'get_model_list':return {model:models,tier_variation:models.length?[{}]:[]};default:throw Error(path);}},write:async(_id:string,_actor:string,path:string,body:any)=>{if(path.endsWith('add_item')){creates++;if(failCreate)throw new PlatformWriteError(true,'timeout');return {item_id:12345};}if(path.endsWith('init_tier_variation')){initializations++;if(failInit)throw new PlatformWriteError(true,'Fixture timeout',{upstreamCode:'error_server',upstreamRequestId:'1234567890abcdef1234567890abcdef'});models.splice(0,models.length,...body.model.map((m:any)=>({...m,price_info:[{original_price:m.original_price}]})));return {};}if(path.endsWith('unlist_item')){listed++;if(!failUnlist)itemStatus='NORMAL';return failUnlist?{failure_list:[{item_id:12345,error:'denied'}]}:{success_list:[{item_id:12345}]};}throw Error('unexpected write');},audit:async()=>{}};
  const db={shopConnection:{findUnique:async()=>({status:'CONNECTED'}),findMany:async()=>[{id:'shop',region:'PH',shopId:'123',shopName:'Shop',status:'CONNECTED'}]}};
  const p=new LocalizationPlatform(undefined,db as never,service as never),ctx={owner:'operator@example.test',userId:'admin'};
  return {p,ctx,recreate:()=>new LocalizationPlatform(undefined,db as never,service as never),get creates(){return creates;},get listed(){return listed;},get initializations(){return initializations;},models,setItemStatus:(value:string)=>{itemStatus=value;},setInitUncertain:()=>{failInit=true;},setFailCreate:()=>{failCreate=true;},setFailUnlist:()=>{failUnlist=true;},close:()=>{rmSync(dir,{recursive:true,force:true});delete process.env.LOCALIZATION_DATA_DIR;}};
@@ -104,5 +104,64 @@ test('detail image dimensions block before upload/create and successful detail c
  await assert.rejects(()=>f.p.publisher(f.ctx,async()=>png).prepare(d,task),/详情图尺寸/);assert.equal(f.creates,0);
  let uploads=0,loads=0;const team={shops:async()=>[],read:async()=>({extended_description_limit:{description_image_width_min:700,description_image_height_min:32}}),localization:async()=>{uploads++;return {imageId:'uploaded-detail'};}};
  const p=new LocalizationPlatform(team as never);png.writeUInt32BE(800,16);png.writeUInt32BE(600,20);const adapter=p.publisher({owner:'owner',sessionId:'fixture'},async()=>{loads++;return png;});const prepared=await adapter.prepare(d,task);assert.equal(uploads,1);assert.equal(loads,1);await adapter.prepare(d,{...task,prepared});assert.equal(uploads,1);assert.equal(loads,1);
+ }finally{f.close();}
+});
+
+test('team prepares public images via authenticated server download and checkpoints without local DNS',async()=>{
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=','base64');
+ const p:any=Object.create(LocalizationPlatform.prototype);const calls:string[]=[];
+ p.team={localization:async(session:string,shop:string,operation:string,body:any)=>{assert.equal(session,'session');assert.equal(shop,'shop');calls.push(operation);if(operation==='download_image'){assert.equal(body.url,'https://images.example.com/a.png');return {data:png.toString('base64')};}if(operation==='upload'){assert.equal(body.data,png.toString('base64'));return {imageId:'uploaded'};}throw Error('unexpected operation');}};
+ const checkpoints:any[]=[];const publisher=p.publisher({owner:'operator@example.test',sessionId:'session'}),d=draft();
+ const result=await publisher.prepare(d,{},(value:any)=>checkpoints.push(value));
+ assert.deepEqual(calls,['download_image','upload']);assert.deepEqual(result.imageIds,['uploaded']);
+ calls.length=0;await publisher.prepare(d,{prepared:result});assert.deepEqual(calls,[]);assert.equal(checkpoints.length,1);
+ calls.length=0;d.images=['/api/v1/localization/assets/'+randomUUID()];
+ await p.publisher({owner:d.owner,sessionId:'session'},async()=>png).prepare(d,{});
+ assert.deepEqual(calls,['upload']);
+ p.team.localization=async()=>({data:Buffer.from('not an image').toString('base64')});
+ await assert.rejects(p.imageBytes({owner:d.owner,sessionId:'session'},'shop','https://images.example.com/a.png'),/格式或大小无效/);
+});
+
+test('central image download rejects private URLs and unauthorized shops without writes',async()=>{
+ const f=fixture();try{
+  (f.p as any).db.shopConnection.findUnique=async({where}:any)=>where.id==='shop'?{status:'CONNECTED'}:null;
+  for(const url of ['https://127.0.0.1/a.png','https://169.254.169.254/a.png','https://198.18.0.123/a.png','http://example.com/a.png'])await assert.rejects(f.p.operation(f.ctx,'shop','download_image',{url}));
+  await assert.rejects(f.p.operation(f.ctx,'wrong-shop','download_image',{url:'https://example.com/a.png'}),/目标店铺尚未连接/);
+  assert.equal(f.creates,0);assert.equal(f.listed,0);
+ }finally{f.close();}
+});
+
+test('completion reads back NORMAL and recovers an already listed item without another listing write',async()=>{
+ const f=fixture();try{const d=draft(),marker='LOC-'+randomUUID(),body={draft:d,marker,prepared:{imageIds:['img']}};
+  await f.p.operation(f.ctx,'shop','create',body);
+  await f.p.operation(f.ctx,'shop','complete',{...body,remoteId:'12345'});
+  assert.equal(f.listed,1);assert.equal(f.creates,1);
+  await f.p.operation(f.ctx,'shop','complete',{...body,remoteId:'12345'});
+  assert.equal(f.listed,1);assert.equal(f.creates,1);
+ }finally{f.close();}
+});
+
+test('team completion distinguishes platform review from NORMAL and never republishes a reviewing item',async()=>{
+ const {RemoteReviewPendingError}=await import('../src/localization-engine');
+ const p:any=Object.create(LocalizationPlatform.prototype),d=draft(),marker='LOC-'+randomUUID();let status='REVIEWING',writes=0;
+ p.team={read:async()=>({item_list:[{item_id:12345,item_status:status,item_sku:marker}]}),localization:async()=>{writes++;return {ok:true};}};
+ const publisher=p.publisher({owner:d.owner,sessionId:'session'}),task={remoteId:'12345',marker};
+ await assert.rejects(publisher.complete(d,task),RemoteReviewPendingError);assert.equal(writes,0);
+ status='NORMAL';await publisher.complete(d,task);assert.equal(writes,0);
+ status='UNLIST';p.team.localization=async()=>{writes++;status='REVIEWING';return {ok:true};};
+ await assert.rejects(publisher.complete(d,task),RemoteReviewPendingError);assert.equal(writes,1);
+});
+
+test('team completion readback recognizes review when the completion response fails',async()=>{
+ const {RemoteReviewPendingError}=await import('../src/localization-engine');
+ const p:any=Object.create(LocalizationPlatform.prototype),d=draft(),marker='LOC-'+randomUUID();let status='UNLIST',writes=0;
+ p.team={read:async()=>({item_list:[{item_id:12345,item_status:status,item_sku:marker}]}),localization:async()=>{writes++;status='REVIEWING';throw Error('completion response lost');}};
+ await assert.rejects(p.publisher({owner:d.owner,sessionId:'session'}).complete(d,{remoteId:'12345',marker}),RemoteReviewPendingError);assert.equal(writes,1);
+});
+test('one-click completion initializes variations and lists without a separate save or resume',async()=>{
+ const f=fixture();try{const d=variationDraft(),body={draft:d,marker:'LOC-'+randomUUID(),prepared:{imageIds:['img']},remoteId:'12345'};
+ await f.p.operation(f.ctx,'shop','create',body);await f.p.operation(f.ctx,'shop','complete',body);
+ assert.equal(f.creates,1);assert.equal(f.initializations,1);assert.equal(f.listed,1);
+ await f.p.operation(f.ctx,'shop','complete',body);assert.equal(f.creates,1);assert.equal(f.initializations,1);assert.equal(f.listed,1);
  }finally{f.close();}
 });

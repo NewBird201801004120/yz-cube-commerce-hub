@@ -1,3 +1,4 @@
+import {VideoSettingsController,VideoSettingsService} from './tools/short-video/settings';
 import {LocalizationReceiptsController,LocalizationReceiptsDevelopmentController} from './localization-receipts';
 import {LocalizationIntegrationController,LocalizationIntegrationService,LocalizationIntegrationGuard,integrationServerRequest} from './localization-integration';
 import {json} from 'express';
@@ -31,7 +32,7 @@ class ErrorFilter implements ExceptionFilter {
     res.status(status).json({diagnostic,code:error instanceof PlatformError?error.code:`HTTP_${status}`,message,requestId:res.getHeader('X-Request-Id')});
   }
 }
-@Module({imports:[ScheduleModule.forRoot()],controllers:[LocalizationReceiptsController,LocalizationReceiptsDevelopmentController,HealthController,AuthController,ShopsController,DevelopmentController,ListingController,LocalizationController,LocalizationDevelopmentController,LocalizationIntegrationController],providers:[Config,Database,Auth,AdminGuard,ShopeeClient,Shops,DevelopmentGuard,ListingService,ListingGuard,LocalizationService,LocalizationGuard,LocalizationPlatform,LocalizationIntegrationService,LocalizationIntegrationGuard]})
+@Module({imports:[ScheduleModule.forRoot()],controllers:[VideoSettingsController,LocalizationReceiptsController,LocalizationReceiptsDevelopmentController,HealthController,AuthController,ShopsController,DevelopmentController,ListingController,LocalizationController,LocalizationDevelopmentController,LocalizationIntegrationController],providers:[VideoSettingsService,Config,Database,Auth,AdminGuard,ShopeeClient,Shops,DevelopmentGuard,ListingService,ListingGuard,LocalizationService,LocalizationGuard,LocalizationPlatform,LocalizationIntegrationService,LocalizationIntegrationGuard]})
 export class AppModule {}
 export async function createApp(){
   const app=await NestFactory.create<NestExpressApplication>(AppModule,{logger:['error','warn'],bodyParser:false});

@@ -1,0 +1,289 @@
+{
+  "schemaVersion": 1,
+  "governanceVersion": "2.1.0",
+  "installedAt": "2026-11-19T06:15:37.127Z",
+  "entries": {
+    ".agent/GOVERNANCE_VERSION": {
+      "templateHash": "c28fcca53637bc88e124af1725df13cb98c69dedefd62fb3cdbe1cdb6b760624",
+      "installedHash": "c28fcca53637bc88e124af1725df13cb98c69dedefd62fb3cdbe1cdb6b760624",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/ledger/.gitkeep": {
+      "templateHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "installedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/orchestration/example.json": {
+      "templateHash": "5affe3309402ddf77c327ed9e55111d8709750295c8ab45202699210c8ac8cf3",
+      "installedHash": "5affe3309402ddf77c327ed9e55111d8709750295c8ab45202699210c8ac8cf3",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/project.yaml": {
+      "templateHash": "ea2b7b360f4db84804be8336c66ffa81975d6774026a4f9082ec13384281541b",
+      "installedHash": "ea2b7b360f4db84804be8336c66ffa81975d6774026a4f9082ec13384281541b",
+      "customized": true,
+      "ownership": "project"
+    },
+    ".agent/rules/backend.md": {
+      "templateHash": "dd779cfbc6b164976ca38409e302b9e3620ac49883e1946aa894e4e1f3737154",
+      "installedHash": "dd779cfbc6b164976ca38409e302b9e3620ac49883e1946aa894e4e1f3737154",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/rules/contracts.md": {
+      "templateHash": "f51f5f10880d47353ab8fd9b23c599ce03eb3245471098d9bae8c535ec2fb96e",
+      "installedHash": "f51f5f10880d47353ab8fd9b23c599ce03eb3245471098d9bae8c535ec2fb96e",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/rules/delivery.md": {
+      "templateHash": "a62a965952d91302cc78fc94ac0bf5bc6f2a7650feb08369fd6ede52062d8600",
+      "installedHash": "a62a965952d91302cc78fc94ac0bf5bc6f2a7650feb08369fd6ede52062d8600",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/rules/frontend.md": {
+      "templateHash": "095c1867c66fb9979eed2690b89cbaffe7fe68ee04d1e7f28ff5f042b55d56ac",
+      "installedHash": "095c1867c66fb9979eed2690b89cbaffe7fe68ee04d1e7f28ff5f042b55d56ac",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/rules/intake.md": {
+      "templateHash": "23c00a2ca211e7ff32e042192bc040f56bedcdf8dc209e769f646b4d63405f22",
+      "installedHash": "23c00a2ca211e7ff32e042192bc040f56bedcdf8dc209e769f646b4d63405f22",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/rules/project-structure.md": {
+      "templateHash": "d2eba433481475453664f0378f404795dbb8c8c805914e360ee3c36edc340032",
+      "installedHash": "d2eba433481475453664f0378f404795dbb8c8c805914e360ee3c36edc340032",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/rules/ui-skill-routing.md": {
+      "templateHash": "6b1ac1ff7c23b309d6a3c2b7aa903b91cd34811002e784800fffba4b414e7186",
+      "installedHash": "6b1ac1ff7c23b309d6a3c2b7aa903b91cd34811002e784800fffba4b414e7186",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/runtime/.gitignore": {
+      "templateHash": "240a3e0d37d2e86b614063f5347eb02d4f99ca6c254de6b82871ff8d95532a7d",
+      "installedHash": "240a3e0d37d2e86b614063f5347eb02d4f99ca6c254de6b82871ff8d95532a7d",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/commit-evidence.schema.json": {
+      "templateHash": "4e8f09850a4a05f05cb840eb8c7482b6e141c253f025a8b6a291905dd8301abb",
+      "installedHash": "4e8f09850a4a05f05cb840eb8c7482b6e141c253f025a8b6a291905dd8301abb",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/coordination-plan.schema.json": {
+      "templateHash": "c3d131a45d6ffa429a215dd62cf053009af8a406e02d56f31a7761393390a057",
+      "installedHash": "c3d131a45d6ffa429a215dd62cf053009af8a406e02d56f31a7761393390a057",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/doctor.schema.json": {
+      "templateHash": "b86599c92dda3797bdf7fa88b97d23f2cc11360f9ec9c960601fef209b02d5f5",
+      "installedHash": "b86599c92dda3797bdf7fa88b97d23f2cc11360f9ec9c960601fef209b02d5f5",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/execution-contract.schema.json": {
+      "templateHash": "cc99911254ece94a7fd8f646a0ded2a954c7327c575ac835f72f42940c2bf8cc",
+      "installedHash": "cc99911254ece94a7fd8f646a0ded2a954c7327c575ac835f72f42940c2bf8cc",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/governance-manifest.schema.json": {
+      "templateHash": "40d177c9b9c70c1a7a987c59d31a886cf1fdf584281525aa1a9b9d304787ca1a",
+      "installedHash": "40d177c9b9c70c1a7a987c59d31a886cf1fdf584281525aa1a9b9d304787ca1a",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/handoff.schema.json": {
+      "templateHash": "b379793043e490c72ad878d66db5434d095938f2104e78387b88e41e61601333",
+      "installedHash": "b379793043e490c72ad878d66db5434d095938f2104e78387b88e41e61601333",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/identity.schema.json": {
+      "templateHash": "4a101af211fd709da639175abf8d7a32e2ba1981db9df2936c2030935d34f599",
+      "installedHash": "4a101af211fd709da639175abf8d7a32e2ba1981db9df2936c2030935d34f599",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/ledger.schema.json": {
+      "templateHash": "97db4dfc1582577cdbee7244d2cd7b507f7ef9928d528dc610c28a7121bb0c10",
+      "installedHash": "97db4dfc1582577cdbee7244d2cd7b507f7ef9928d528dc610c28a7121bb0c10",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/lifecycle-receipt.schema.json": {
+      "templateHash": "7d9a8d3c630e4f95734d9c6a1f402f7a9cd5317ae4bb622e79c78f1b17369010",
+      "installedHash": "7d9a8d3c630e4f95734d9c6a1f402f7a9cd5317ae4bb622e79c78f1b17369010",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/native-operation.schema.json": {
+      "templateHash": "77dc759cac3e1f4b9bf9d2a5c6fb75f55f38ddf025e9c2e1f1fbb1fbc78d90cf",
+      "installedHash": "77dc759cac3e1f4b9bf9d2a5c6fb75f55f38ddf025e9c2e1f1fbb1fbc78d90cf",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/native-receipt.schema.json": {
+      "templateHash": "a1f0cf9462271f1a1a1155e6439ff1cf787013c1c6f933cbcf9e6bd9460a94b7",
+      "installedHash": "a1f0cf9462271f1a1a1155e6439ff1cf787013c1c6f933cbcf9e6bd9460a94b7",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/orchestration-plan.schema.json": {
+      "templateHash": "25682d4a41206ecefb4b9756a336e94fac5834b76ec9b489003d3f6a0bcae6c1",
+      "installedHash": "25682d4a41206ecefb4b9756a336e94fac5834b76ec9b489003d3f6a0bcae6c1",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/orchestration-receipt.schema.json": {
+      "templateHash": "15ebdb48745fd8c20ac2056d83dcd1b4492f9c66174b5f04fa6a0450cdd0a135",
+      "installedHash": "15ebdb48745fd8c20ac2056d83dcd1b4492f9c66174b5f04fa6a0450cdd0a135",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/policy-snapshot.schema.json": {
+      "templateHash": "2013cf315997a8adc89945ab1ebe91cf9959cc8000ef6b58e6f78c25ea3db1a0",
+      "installedHash": "2013cf315997a8adc89945ab1ebe91cf9959cc8000ef6b58e6f78c25ea3db1a0",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/project-state.schema.json": {
+      "templateHash": "9ac7a0cea2013899b09cacf0c1535c1eb6c9966352751f0626b99fe0ccbdfe70",
+      "installedHash": "9ac7a0cea2013899b09cacf0c1535c1eb6c9966352751f0626b99fe0ccbdfe70",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/project.schema.json": {
+      "templateHash": "94fc5afcac3b4c8c9cf172c89e43e27a0dac0d11c1f6e50f0b189acc732e2f51",
+      "installedHash": "94fc5afcac3b4c8c9cf172c89e43e27a0dac0d11c1f6e50f0b189acc732e2f51",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/schemas/task-intent.schema.json": {
+      "templateHash": "b721a48c58358db9c554ba7cced1a008d3900fbbb3af1f20972bb89423ec8684",
+      "installedHash": "b721a48c58358db9c554ba7cced1a008d3900fbbb3af1f20972bb89423ec8684",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/scripts/cli.mjs": {
+      "templateHash": "540658674c9a3ff42d9245dcbf15f20886a00d9696b80d6e0e4f4db39fa7dc74",
+      "installedHash": "540658674c9a3ff42d9245dcbf15f20886a00d9696b80d6e0e4f4db39fa7dc74",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/scripts/detect.mjs": {
+      "templateHash": "b3b0942fd025f97c04646950a038aae08a40c265fed30343851bc3ae1e8f116f",
+      "installedHash": "b3b0942fd025f97c04646950a038aae08a40c265fed30343851bc3ae1e8f116f",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/scripts/gate.mjs": {
+      "templateHash": "8a133e9c1f187999e62f3e4e91ceb5c44aa3a2603dbf2a0bf5cfb7a3a9ea9ba6",
+      "installedHash": "8a133e9c1f187999e62f3e4e91ceb5c44aa3a2603dbf2a0bf5cfb7a3a9ea9ba6",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/scripts/install.mjs": {
+      "templateHash": "d67a70de7ea79cca843a9482db5f929e812587544423b9739ac12dc0a6d1c6cd",
+      "installedHash": "d67a70de7ea79cca843a9482db5f929e812587544423b9739ac12dc0a6d1c6cd",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/scripts/intake.mjs": {
+      "templateHash": "70bd9016a91e10a1f756cb76e272dfc812559a3a8377d356bff75b9a1388de7b",
+      "installedHash": "70bd9016a91e10a1f756cb76e272dfc812559a3a8377d356bff75b9a1388de7b",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/scripts/io.mjs": {
+      "templateHash": "fbee1abb8bdeca22b87aa066ebf4fba90fb7608b2821044cf6e165b0e2819dfd",
+      "installedHash": "fbee1abb8bdeca22b87aa066ebf4fba90fb7608b2821044cf6e165b0e2819dfd",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/scripts/orca-cli.mjs": {
+      "templateHash": "2d603ab51cb64abf63aa2af718b6c17e23367af5dfea98b5ed0e6955a86b897a",
+      "installedHash": "2d603ab51cb64abf63aa2af718b6c17e23367af5dfea98b5ed0e6955a86b897a",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/scripts/orca.mjs": {
+      "templateHash": "8dba55f532347d8e00cc48030245c5db83a783fcf593fbb7561dde3c16c6960c",
+      "installedHash": "8dba55f532347d8e00cc48030245c5db83a783fcf593fbb7561dde3c16c6960c",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/scripts/policy.mjs": {
+      "templateHash": "3bdc61a31ad964019286159195f0abb250934e4e297e9f2674f7c3bfa111ec5b",
+      "installedHash": "3bdc61a31ad964019286159195f0abb250934e4e297e9f2674f7c3bfa111ec5b",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/scripts/safe-path.mjs": {
+      "templateHash": "fe38b27014bf077485be3dbef693a3ae5e5d1c099a6b76da2a9e74707b672d81",
+      "installedHash": "fe38b27014bf077485be3dbef693a3ae5e5d1c099a6b76da2a9e74707b672d81",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/scripts/trust.mjs": {
+      "templateHash": "1e57e6644b859f7f6b57385b39ce841e86492582cf3e7f4b074346cf4b60b455",
+      "installedHash": "1e57e6644b859f7f6b57385b39ce841e86492582cf3e7f4b074346cf4b60b455",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/scripts/verification.mjs": {
+      "templateHash": "ad0222ee696113028c4743b558367464fa1e9228d34bff9bfdab87bcaba14c75",
+      "installedHash": "ad0222ee696113028c4743b558367464fa1e9228d34bff9bfdab87bcaba14c75",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/scripts/verify.mjs": {
+      "templateHash": "b3f690a82575476a080484d21cc89be8f8b5a57b4af23b0ad15c8a069daff994",
+      "installedHash": "b3f690a82575476a080484d21cc89be8f8b5a57b4af23b0ad15c8a069daff994",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".agent/state.json": {
+      "templateHash": "51e7edf3be66ac699dcac8557554c49295f23aef35604cccadc865f9c07b4240",
+      "installedHash": "ae96cfa50d09e073bb438122858a1cf089708f00a12853cb78d5dd46e02173b1",
+      "customized": true,
+      "ownership": "project"
+    },
+    ".cursor/rules/project.mdc": {
+      "templateHash": "b2a3473d415f09303f8d672f6e2f731c648bd009136411563a0636d65842cae0",
+      "installedHash": "b2a3473d415f09303f8d672f6e2f731c648bd009136411563a0636d65842cae0",
+      "customized": false,
+      "ownership": "governance"
+    },
+    ".github/workflows/agent-governance.yml": {
+      "templateHash": "0b3e496c49aee90b8d1fc28e7b7abb284bd5f02603b491fffa730292c259a7cd",
+      "installedHash": "0b3e496c49aee90b8d1fc28e7b7abb284bd5f02603b491fffa730292c259a7cd",
+      "customized": false,
+      "ownership": "governance"
+    },
+    "AGENTS.md": {
+      "templateHash": "fc11c6d5d803208d2f31d3fa59b013fd40279f18326ed119bfaf73bbd06ad36f",
+      "installedHash": "fc11c6d5d803208d2f31d3fa59b013fd40279f18326ed119bfaf73bbd06ad36f",
+      "customized": false,
+      "ownership": "governance"
+    },
+    "CLAUDE.md": {
+      "templateHash": "6e2b97cf999da88a00619dfa246290f7ae1d3e04fa7e5f1adacc1da8cb8bae56",
+      "installedHash": "6e2b97cf999da88a00619dfa246290f7ae1d3e04fa7e5f1adacc1da8cb8bae56",
+      "customized": false,
+      "ownership": "governance"
+    }
+  }
+}

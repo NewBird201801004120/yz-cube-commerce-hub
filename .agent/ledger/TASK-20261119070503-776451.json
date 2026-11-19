@@ -1,0 +1,43 @@
+{
+  "task": {
+    "id": "TASK-20261119070503-776451"
+  },
+  "goal": {
+    "primary": "解除旧保存测试路由，复用已部署的鉴权发布接口",
+    "acceptance": [
+      "店铺资格查询通过",
+      "未授权访问仍401",
+      "商品校验和幂等不绕过",
+      "Nginx配置验证并可回滚"
+    ],
+    "nonGoals": [
+      "不替用户发布商品",
+      "不修改授权或凭据",
+      "不部署其他未提交代码"
+    ]
+  },
+  "scope": {
+    "allowed_paths": [
+      "scripts/nginx/localization-publishing.conf",
+      "docs/SERVER-DEPLOYMENT.md",
+      ".agent/ledger/TASK-20261119070503-776451.json"
+    ],
+    "modules": [
+      "Nginx已认证发布路由"
+    ]
+  },
+  "tier": {
+    "predicted": "T2"
+  },
+  "verification": {
+    "required": [
+      "test",
+      "typecheck",
+      "build",
+      "verify:baseline",
+      "Diff Gate",
+      "nginx -t",
+      "真实资格查询"
+    ]
+  }
+}

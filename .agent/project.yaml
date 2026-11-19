@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "project": {
+    "name": "yz-cube-commerce-hub",
+    "lifecycle": "mvp",
+    "scale": "medium",
+    "default_task_tier": "T1"
+  },
+  "package_manager": "pnpm",
+  "workspaces": [
+    "apps/api",
+    "apps/console"
+  ],
+  "required_docs": [],
+  "frozen_paths": [
+    "apps/api/src/listing-engine.ts",
+    "apps/api/test/listing.test.ts",
+    "apps/console/src/lib/listing.ts",
+    "apps/web/public/interactive-preview.html"
+  ],
+  "structure": {
+    "allowed_roots": [],
+    "forbidden_patterns": []
+  },
+  "dependency_policy": {
+    "denied": [],
+    "allowed": []
+  },
+  "risk_rules": [
+    {
+      "tier": "T3",
+      "paths": [
+        "apps/**/auth/**",
+        "apps/api/src/auth.ts",
+        "apps/api/src/crypto.ts",
+        "apps/**/billing/**",
+        "apps/**/ledger/**",
+        "apps/**/migrations/**"
+      ]
+    },
+    {
+      "tier": "T2",
+      "paths": [
+        "apps/**/contracts/**",
+        "apps/**/providers/**",
+        "apps/**/workers/**",
+        "apps/api/src/localization-integration.ts"
+      ]
+    }
+  ],
+  "exclusive_resources": [
+    "contracts",
+    "migrations",
+    "lockfile"
+  ],
+  "required_scripts": {
+    "T0": [
+      "typecheck",
+      "verify:baseline"
+    ],
+    "T1": [
+      "test",
+      "typecheck",
+      "verify:baseline"
+    ],
+    "T2": [
+      "test",
+      "typecheck",
+      "build",
+      "verify:baseline"
+    ],
+    "T3": [
+      "test",
+      "typecheck",
+      "build",
+      "verify:baseline"
+    ]
+  }
+}

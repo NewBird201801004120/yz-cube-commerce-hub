@@ -28,3 +28,36 @@ test('structured media stays isolated by market and image changes invalidate rev
  const edited=e.updateDraft('owner',changed.id,{media:{...changed.media!,detailBlocks:[{type:'text',text:'Edited target text'}]},imagesReviewed:true},changed.revision);assert.equal(edited.imagesReviewed,false);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test('platform review persists the original remote item and completes later without recreating',async()=>{
+ const {RemoteReviewPendingError}=await import('../src/localization-engine');
+ const {dir,engine:e,cleanup}=setup();try{const d=ready(e);let creates=0;
+ const t=await e.publish('a',d.id,adapter({create:async()=>{creates++;return {remoteId:'review-item'};},complete:async()=>{throw new RemoteReviewPendingError();}}),d.revision);
+ assert.equal(t.status,'created');assert.equal(t.stage,'等待虾皮审核');assert.equal(t.remoteId,'review-item');assert.ok(t.error?.includes('正在平台审核'));const restarted=new LocalizationEngine(dir);assert.equal(restarted.getTask('a',t.id).error,t.error);assert.equal(restarted.getTask('a',t.id).stage,'等待虾皮审核');
+ const next=await e.resume('a',t.id,adapter({create:async()=>{creates++;return {remoteId:'wrong'};}}));
+ assert.equal(next.status,'succeeded');assert.equal(next.remoteId,'review-item');assert.equal(creates,1);
+ }finally{cleanup();}
+});
+
+test('record status queries reconcile and read review results without create, prepare or complete',async()=>{
+ const {dir,engine:e,cleanup}=setup();try{
+  const d=ready(e),t=await e.publish('a',d.id,adapter({create:async()=>{throw Error('lost response');}}),d.revision);assert.equal(t.status,'uncertain');
+  let writes=0,reads=0;const readonly=adapter({prepare:async()=>{writes++;throw Error('must not prepare');},create:async()=>{writes++;throw Error('must not create');},complete:async()=>{writes++;},reconcile:async()=>({status:'found',remoteId:'found-item'})});
+  let queried=await e.checkStatus('a',t.id,readonly,async()=>{reads++;return 'REVIEWING';});
+  assert.equal(queried.status,'created');assert.equal(queried.stage,'等待虾皮审核');assert.equal(queried.remoteId,'found-item');assert.equal(writes,0);
+  queried=await e.checkStatus('a',t.id,readonly,async()=>{reads++;return 'NORMAL';});assert.equal(queried.status,'succeeded');assert.equal(writes,0);assert.equal(reads,2);
+  await e.checkStatus('a',t.id,readonly,async()=>{throw Error('success is immutable');});
+  assert.equal(writes,0);assert.equal(e.listTasks('a').length,1);
+  assert.equal(new LocalizationEngine(dir).getTask('a',t.id).status,'succeeded');
+ }finally{cleanup();}
+});
+
+test('one-click start automatically completes listing without any record-page action',async()=>{
+ const {engine:e,cleanup}=setup();try{const d=ready(e);let release!:()=>void;const completing=new Promise<void>(resolve=>{release=resolve;});let creates=0,completes=0;
+ const task=e.startPublish('a',d.id,adapter({create:async()=>{creates++;return {remoteId:'one-click-item'};},complete:async()=>{completes++;await completing;}}),d.revision);
+ for(let i=0;i<100&&completes===0;i++)await new Promise(resolve=>setTimeout(resolve,1));
+ assert.equal(completes,1);assert.equal(e.getTask('a',task.id).status,'completing');release();
+ for(let i=0;i<100&&e.getTask('a',task.id).status!=='succeeded';i++)await new Promise(resolve=>setTimeout(resolve,1));
+ assert.equal(e.getTask('a',task.id).status,'succeeded');assert.equal(creates,1);assert.equal(completes,1);
+ }finally{cleanup();}
+});

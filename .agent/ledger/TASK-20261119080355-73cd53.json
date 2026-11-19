@@ -1,0 +1,44 @@
+{
+  "task": {
+    "id": "TASK-20261119080355-73cd53"
+  },
+  "goal": {
+    "primary": "发布记录只读查看，仅失败允许重试，查询审核绝不触发发布",
+    "acceptance": [
+      "已成功任务拒绝重试接口",
+      "审核查询与未知结果核对仅远端读取",
+      "详情展示记录快照且隐藏发布编辑操作",
+      "失败重试复用原商品和任务"
+    ],
+    "nonGoals": [
+      "不真实发布或重试用户商品",
+      "不部署生产",
+      "不改Listing核心"
+    ]
+  },
+  "scope": {
+    "modules": [
+      "apps/api/src/localization.ts",
+      "apps/api/src/localization-engine.ts",
+      "apps/api/src/localization-platform.ts",
+      "apps/api/test/localization-http.test.ts",
+      "apps/api/test/localization-engine.test.ts",
+      "apps/console/src/lib/localization.ts",
+      "apps/console/src/app/tools/localization/publishing/page.tsx",
+      "apps/console/src/app/tools/localization/product-workspace.tsx"
+    ]
+  },
+  "tier": {
+    "predicted": "T2"
+  },
+  "verification": {
+    "required": [
+      "test",
+      "typecheck",
+      "build",
+      "verify:baseline",
+      "Diff Gate"
+    ],
+    "browser": "Chrome真实页面+发布状态响应fixture：成功记录0发布按钮，失败记录1重试，审核只发status请求，详情只读快照；不操作真实商品"
+  }
+}

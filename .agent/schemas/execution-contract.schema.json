@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "contractId",
+    "taskId",
+    "goal",
+    "projectId",
+    "baseCommit",
+    "policySnapshotId",
+    "allowedPaths",
+    "forbiddenPaths",
+    "verificationScripts",
+    "integrity"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "contractId": {
+      "pattern": "^ctr_[a-f0-9]{24}$"
+    },
+    "integrity": {
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "approvalSource": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "consequenceConfirmation": {
+      "type": "object",
+      "required": [
+        "contractId",
+        "baseCommit",
+        "policySnapshotId",
+        "source",
+        "consequence",
+        "actor",
+        "at"
+      ],
+      "properties": {
+        "contractId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseCommit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policySnapshotId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "consequence": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "at": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

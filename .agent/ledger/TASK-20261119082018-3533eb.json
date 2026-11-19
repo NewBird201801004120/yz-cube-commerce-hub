@@ -1,0 +1,42 @@
+{
+  "task": {
+    "id": "TASK-20261119082018-3533eb"
+  },
+  "goal": {
+    "primary": "一键上架在原页面自动执行完整流程，仅完成或审核中跳转记录，失败原页可恢复",
+    "acceptance": [
+      "完整自动创建规格并正式上架",
+      "任务接收不能冒充上架成功",
+      "失败留原页支持复用原任务恢复",
+      "记录仅失败可继续",
+      "审核中不误报失败"
+    ],
+    "nonGoals": [
+      "不新增或重新发布真实商品",
+      "不部署",
+      "不修改Listing核心"
+    ]
+  },
+  "scope": {
+    "allowed_paths": [
+      "apps/api/src/localization-platform.ts",
+      "apps/api/test/localization-engine.test.ts",
+      "apps/api/test/localization-platform.test.ts",
+      "apps/console/src/app/tools/localization/product-workspace.tsx",
+      "apps/console/src/lib/localization.ts"
+    ]
+  },
+  "tier": {
+    "predicted": "T1"
+  },
+  "verification": {
+    "required": [
+      "test",
+      "typecheck",
+      "build",
+      "verify:baseline",
+      "Diff Gate",
+      "浏览器模拟发布流程"
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "task": {
+    "id": "TASK-20261119060508-bfe560"
+  },
+  "goal": {
+    "primary": "中台组图应用到独立市场版本；仿真令牌读取完成图片；转译语言版本如实标记",
+    "acceptance": [
+      "仅完成图片可选，可排序并持久保存当前版本独立副本",
+      "切换市场版本同步文案、图片与目标语言，原始资料不变",
+      "仅转译成功后出现已完成语种版本，新语言版本隔离",
+      "机器接口复用专用令牌、拒绝浏览器凭据、按账号隔离",
+      "类型检查、测试、构建、原型基线与Diff Gate通过"
+    ],
+    "nonGoals": [
+      "不改Listing核心",
+      "不部署或推送",
+      "不真实上架或触发收费生图",
+      "不把组图名称自动当作仿真商品关联"
+    ]
+  },
+  "scope": {
+    "baseline": "用户原有未提交修改保留；整工作树纳入验证快照，不代表修改或发布其他功能。",
+    "modules": [
+      "localization",
+      "localization/integration",
+      "localization UI",
+      "docs/LOCALIZATION-INTEGRATION.md"
+    ]
+  },
+  "tier": {
+    "predicted": "T2",
+    "note": "专用令牌只读新边界按T2验证；.agent/ledger仅治理记录，不是金融账本，金融路径规则限定apps目录。"
+  },
+  "verification": {
+    "required": [
+      "test",
+      "typecheck",
+      "build",
+      "verify:baseline",
+      "Diff Gate"
+    ],
+    "browser": "真实读取已有图片；版本生成和图片应用用模拟响应检查，服务端在隔离临时目录验证持久化与权限。"
+  }
+}
