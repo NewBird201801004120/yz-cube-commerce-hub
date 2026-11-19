@@ -56,6 +56,7 @@ test('machine imports: scoped authentication, persistent idempotency, independen
   for(const response of responses)assert.equal(response.status,201);
   const receipts=await Promise.all(responses.map(r=>r.json())),first=receipts[0];
   assert.equal(responses.filter(r=>r.headers.get('x-localization-import-outcome')==='created').length,1);assert.equal(responses.filter(r=>r.headers.get('x-localization-import-outcome')==='replayed').length,4);assert.ok(responses.every(r=>r.headers.get('x-localization-receipt-id')===first.id));
+  assert.equal(receipts.filter(r=>r.outcome==='created'&&!r.duplicate).length,1);assert.equal(receipts.filter(r=>r.outcome==='replayed'&&r.duplicate).length,4);assert.ok(receipts.filter(r=>r.duplicate).every(r=>r.message.includes('未新增记录或消息')));
   assert.ok(first.sourceId&&first.draftId&&first.id);assert.equal(new Set(receipts.map(r=>r.id)).size,1);
   assert.equal((await settled(first.id)).status,'awaiting_review');assert.equal(localizations,1);
   assert.equal(runtime.engine.listSources(owner).length,1);assert.equal(runtime.engine.listDrafts(owner).length,1);assert.equal(runtime.engine.listTasks(owner).length,0);
@@ -146,7 +147,7 @@ test('machine imports: scoped authentication, persistent idempotency, independen
 
   const v2={schemaVersion:2,requestId:'v2-outcome-check',product:payload.product,publishing:{currency:'PHP',variants:payload.target.publishing.variants}};
   const fresh=await call('/imports','POST',v2);assert.equal(fresh.status,201);assert.equal(fresh.headers.get('x-localization-import-outcome'),'created');const v2Receipt=await fresh.json();assert.equal(fresh.headers.get('x-localization-receipt-id'),v2Receipt.id);
-  const replay=await call('/imports','POST',v2);assert.equal(replay.status,201);assert.equal(replay.headers.get('x-localization-import-outcome'),'replayed');assert.equal(replay.headers.get('x-localization-receipt-id'),v2Receipt.id);assert.equal((await replay.json()).createdAt,v2Receipt.createdAt);
+  const replay=await call('/imports','POST',v2);assert.equal(replay.status,201);assert.equal(replay.headers.get('x-localization-import-outcome'),'replayed');assert.equal(replay.headers.get('x-localization-receipt-id'),v2Receipt.id);const replayedReceipt=await replay.json();assert.equal(replayedReceipt.createdAt,v2Receipt.createdAt);assert.equal(v2Receipt.outcome,'created');assert.equal(v2Receipt.duplicate,false);assert.equal(replayedReceipt.outcome,'replayed');assert.equal(replayedReceipt.duplicate,true);assert.match(replayedReceipt.message,/返回原接收记录/);
 
  }finally{await runtime.app.close();if(previousConfig===undefined)delete process.env.LOCALIZATION_INTEGRATIONS_FILE;else process.env.LOCALIZATION_INTEGRATIONS_FILE=previousConfig;rmSync(dir,{recursive:true,force:true});}
 });

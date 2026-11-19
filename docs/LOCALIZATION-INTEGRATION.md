@@ -212,6 +212,9 @@ assets中role=gallery的URL必须同时出现在images中，否则发布前阻�
   "id": "d7df7f6a-9afa-5a5f-a1e8-530e79b66719",
   "requestId": "simulation-source-v2-example-001",
   "status": "received",
+  "outcome": "created",
+  "duplicate": false,
+  "message": "已新增商品接收记录",
   "sourceId": "cda18033-fcd1-5bac-a60b-31339f43ee09",
   "reviewSourceId": "cda18033-fcd1-5bac-a60b-31339f43ee09",
   "draftId": "",
@@ -233,6 +236,9 @@ assets中role=gallery的URL必须同时出现在images中，否则发布前阻�
 | id | string | 中台接收记录ID；用于后续查询 |
 | requestId | string | 原幂等键 |
 | status | string | v2固定received，表示源资料已接收，不表示AI或Shopee已完成 |
+| outcome | string | 仅POST响应：`created`新增；`replayed`相同requestId和内容返回原记录 |
+| duplicate | boolean | 仅POST响应：`true`表示重复提交，未新增记录或消息 |
+| message | string | 仅POST响应：可展示的接收说明；程序判断使用outcome和duplicate |
 | sourceId | string | 中台源商品ID |
 | reviewSourceId | string | 中台审核页面使用的只读来源标识；v2与sourceId相同，旧v1可能不同；调用方原样保存，不自行生成或推导 |
 | draftId | string | v2接收阶段为空；未自动创建目标市场版本 |
@@ -245,12 +251,14 @@ assets中role=gallery的URL必须同时出现在images中，否则发布前阻�
 | localizationError | string | 可选；旧v1文案错误说明 |
 | note | string | 可选提示，不作为状态判断依据 |
 
-成功接收响应头（v1/v2均适用，响应正文和201状态保持兼容）：
+成功接收响应头（v1/v2均适用，201及既有响应字段保持兼容）：
 
 | 响应头 | 类型 | 说明 |
 | --- | --- | --- |
 | X-Localization-Import-Outcome | string | `created`：新增接收记录；`replayed`：相同requestId和内容重放，返回旧记录 |
 | X-Localization-Receipt-Id | string | 本次返回的接收记录ID，与正文id相同 |
+
+发送方必须读取正文`outcome`：`created`显示“提交成功”；`replayed`显示“该请求已接收，未新增记录”，可打开原接收记录，不能提示为新商品已提交。相同requestId但内容不同返回409及错误说明。重复相同内容不返回错误，以支持断网/超时后的安全重试。
 
 发送方应保存响应头、正文id/requestId/createdAt和HTTP追踪编号。201只表示接收成功；`replayed`不会新增接收记录或消息。新的一次提交使用新的requestId；断网或超时后的同一提交保持原requestId以防重复。
 

@@ -1,3 +1,4 @@
+import {ListingSourceIntakeController,ListingSourceIntakeService} from './listing-source-intake';
 import {LocalizationShopProductsController,LocalizationShopProductsService} from './localization-shop-products';
 import {VideoSettingsController,VideoSettingsService} from './tools/short-video/settings';
 /** Production entry for machine imports and the matching authenticated review workspace. */
@@ -54,7 +55,7 @@ export class LocalizationIntegrationErrors implements ExceptionFilter {
  }
 }
 
-@Module({controllers:[LocalizationShopProductsController,VideoSettingsController,SelectionController,LocalizationIntegrationHealth,LocalizationIntegrationController,LocalizationController,LocalizationReceiptsController,LocalizationReceiptsDevelopmentController,LocalizationAISettings],providers:[LocalizationShopProductsService,VideoSettingsService,SelectionService,Config,Database,Auth,Shops,ShopeeClient,ListingService,LocalizationPlatform,LocalizationService,LocalizationGuard,LocalizationIntegrationGuard,LocalizationIntegrationService,DevelopmentGuard]})
+@Module({controllers:[ListingSourceIntakeController,LocalizationShopProductsController,VideoSettingsController,SelectionController,LocalizationIntegrationHealth,LocalizationIntegrationController,LocalizationController,LocalizationReceiptsController,LocalizationReceiptsDevelopmentController,LocalizationAISettings],providers:[ListingSourceIntakeService,LocalizationShopProductsService,VideoSettingsService,SelectionService,Config,Database,Auth,Shops,ShopeeClient,ListingService,LocalizationPlatform,LocalizationService,LocalizationGuard,LocalizationIntegrationGuard,LocalizationIntegrationService,DevelopmentGuard]})
 export class LocalizationIntegrationModule {}
 
 export function configureIntegrationHttp(app:INestApplication,webOrigin:string){
