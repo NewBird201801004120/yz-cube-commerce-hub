@@ -4,6 +4,7 @@ import {mkdirSync,readFileSync,writeFileSync,renameSync,existsSync,readdirSync} 
 import {resolve,join} from 'node:path';
 import {randomBytes,randomUUID,createHash} from 'node:crypto';
 import {zipSync,unzipSync} from 'fflate';
+import sharp from 'sharp';
 import {Auth} from './auth';
 import {TeamShopClient} from './team-client';
 import {encrypt,decrypt} from './crypto';
@@ -79,7 +80,8 @@ export class ListingService implements OnModuleInit{
  }
  private load(id:string,owner:string){if(!/^[a-f0-9-]{36}$/.test(id))throw new NotFoundException('任务不存在');const p=join(this.dir,'jobs',`${id}.json`);if(!existsSync(p))throw new NotFoundException('任务不存在');const j=JSON.parse(readFileSync(p,'utf8')) as Job;if(j.owner!==owner||j.deletedAt)throw new NotFoundException('任务不存在');return j;}
  private view(j:Job,full=true){return {id:j.id,name:j.name,sku:j.sku,brand:j.brand,visualBrief:j.visualBrief,market:j.market,language:j.language,createdAt:j.createdAt,updatedAt:j.updatedAt,status:j.status,error:j.error,count:j.count,completed:j.slots.filter(s=>s.status==='success').length,total:j.slots.length,...(full?{notes:j.notes,planVersion:j.planVersion,seoTitle:j.seoTitle,sellingPoints:j.sellingPoints,verificationNotes:j.verificationNotes,attachments:[j.primary,...j.supplements,...j.documents].map(a=>({id:a.id,name:a.name})),facts:j.facts,skipped:j.skipped,categoryProfile:j.categoryProfile,visualIdentity:j.visualIdentity,designSystem:j.designSystem,slots:j.slots.map(s=>({...s,hasPrevious:!!s.previousFiles?.length,imageUrl:s.file?`/api/v1/listing/jobs/${j.id}/images/${s.file}`:undefined}))}:{})};}
- list(owner:string){return readdirSync(join(this.dir,'jobs')).filter(f=>f.endsWith('.json')).map(f=>JSON.parse(readFileSync(join(this.dir,'jobs',f),'utf8')) as Job).filter(j=>j.owner===owner&&!j.deletedAt).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,100).map(j=>this.view(j,false));}
+ list(owner:string){return readdirSync(join(this.dir,'jobs')).filter(f=>f.endsWith('.json')).map(f=>JSON.parse(readFileSync(join(this.dir,'jobs',f),'utf8')) as Job).filter(j=>j.owner===owner&&!j.deletedAt).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,100).map(j=>({...this.view(j,false),thumbnailUrl:`/api/v1/listing/jobs/${j.id}/thumbnail`}));}
+ async thumbnail(id:string,owner:string){const j=this.load(id,owner);if(!j.primary?.data)throw new NotFoundException('商品原图暂不可用');return sharp(Buffer.from(j.primary.data,'base64'),{limitInputPixels:40000000}).rotate().resize(160,160,{fit:'inside',withoutEnlargement:true}).flatten({background:'#ffffff'}).jpeg({quality:78}).toBuffer();}
  get(id:string,owner:string){return this.view(this.load(id,owner));}
  async create(raw:unknown,owner:string){
   const b=raw as Record<string,unknown>;if(!b||typeof b!=='object')throw new BadRequestException('任务参数无效');
@@ -148,6 +150,7 @@ export class ListingController{
  @Get('listing/jobs') list(@Req() r:ListingRequest){return this.listings.list(r.listingOwner);}
  @Post('listing/jobs') create(@Body() b:unknown,@Req() r:ListingRequest){return this.listings.create(b,r.listingOwner);}
  @Get('listing/jobs/:id') get(@Param('id') id:string,@Req() r:ListingRequest){return this.listings.get(id,r.listingOwner);}
+ @Get('listing/jobs/:id/thumbnail') async thumbnail(@Param('id') id:string,@Req() r:ListingRequest,@Res() res:Response){const bytes=await this.listings.thumbnail(id,r.listingOwner);res.setHeader('Cache-Control','private, no-store');res.type('image/jpeg').send(bytes);}
  @Delete('listing/jobs/:id') remove(@Param('id') id:string,@Req() r:ListingRequest){return this.listings.remove(id,r.listingOwner);}
  @Delete('listing/jobs/:id/slots/:slotId') removeSlot(@Param('id') id:string,@Param('slotId') slotId:string,@Req() r:ListingRequest){return this.listings.remove(id,r.listingOwner,slotId);}
  @Get('listing/jobs/:id/download') download(@Param('id') id:string,@Req() r:ListingRequest,@Res() res:Response){const bytes=this.listings.download(id,r.listingOwner);res.type('application/zip').setHeader('Content-Disposition',`attachment; filename="listing-${id}.zip"`);res.send(bytes);}

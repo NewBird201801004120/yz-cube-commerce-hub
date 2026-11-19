@@ -1,1 +1,52 @@
-{"task":{"id":"TASK-20261119092127-bd2d0f"},"goal":{"primary":"仿真接收消息中心与交互完善，商品组图列表与详情结构优化，生产一致性验收部署","acceptance":["消息按账号持久化未读数，本地生产共享中央状态且权限隔离","消息可打开商品审核并标记已读，不自动发布","列表刷新、断网恢复、状态与loading反馈完善","商品组图以任务列表进入详情，不改变生成逻辑","本地完整验证、CI及生产页面API验收通过"],"nonGoals":["不实际发布Shopee商品","不执行付费生成","不更改Listing引擎和数据库结构"]},"scope":{"allowed_paths":["apps/api/src/localization-notifications.ts","apps/api/src/localization-receipts.ts","apps/api/src/localization-integration.ts","apps/api/src/team-client.ts","apps/api/test/**","apps/console/src/components/**","apps/console/src/app/tools/**",".github/**","scripts/**","docs/**","deployment/**",".agent/ledger/**"],"freeze":"遵循project.yaml冻结路径"},"tier":{"predicted":"T2"},"verification":{"required":["test","typecheck","build","verify:baseline","Diff Gate","浏览器与生产只读验证"]}}
+{
+  "task": {
+    "id": "TASK-20261119092127-bd2d0f"
+  },
+  "goal": {
+    "primary": "仿真接收消息中心与交互完善，商品组图列表与详情结构优化，生产一致性验收部署",
+    "acceptance": [
+      "消息按账号持久化未读数，本地生产共享中央状态且权限隔离",
+      "消息可打开商品审核并标记已读，不自动发布",
+      "列表刷新、断网恢复、状态与loading反馈完善",
+      "商品组图以任务列表进入详情，不改变生成逻辑",
+      "本地完整验证、CI及生产页面API验收通过",
+      "组图列表展示真实商品原图缩略图，未完成任务也可显示"
+    ],
+    "nonGoals": [
+      "不实际发布Shopee商品",
+      "不执行付费生成",
+      "不更改Listing引擎和数据库结构"
+    ]
+  },
+  "scope": {
+    "allowed_paths": [
+      "apps/api/src/localization-notifications.ts",
+      "apps/api/src/localization-receipts.ts",
+      "apps/api/src/localization-integration.ts",
+      "apps/api/src/team-client.ts",
+      "apps/api/test/**",
+      "apps/console/src/components/**",
+      "apps/console/src/app/tools/**",
+      ".github/**",
+      "scripts/**",
+      "docs/**",
+      "deployment/**",
+      ".agent/ledger/**",
+      "apps/api/src/listing.ts"
+    ],
+    "freeze": "遵循project.yaml冻结路径"
+  },
+  "tier": {
+    "predicted": "T2"
+  },
+  "verification": {
+    "required": [
+      "test",
+      "typecheck",
+      "build",
+      "verify:baseline",
+      "Diff Gate",
+      "浏览器与生产只读验证"
+    ]
+  }
+}

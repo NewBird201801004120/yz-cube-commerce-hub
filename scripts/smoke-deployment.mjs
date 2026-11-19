@@ -10,7 +10,10 @@ async function get(path){const response=await request(path,{headers:{cookie}});a
 try{
  const login=await request('/api/v1/auth/login',{method:'POST',headers:{origin:base,'content-type':'application/json'},body:JSON.stringify({email,password})});
  assert.equal(login.status,201,'login failed');cookie=login.headers.getSetCookie().map(value=>value.split(';')[0]).join('; ');assert.ok(cookie,'missing login cookie');
- for(const path of ['/api/v1/health','/api/v1/auth/me','/api/v1/shops','/api/v1/localization/receipts','/api/v1/localization/sources','/api/v1/localization/drafts','/api/v1/localization/jobs','/api/v1/listing/jobs','/api/v1/tools/short-video/jobs','/api/v1/settings/ai/video'])await get(path);
+ const health=await(await get('/api/v1/health')).json();
+ for(const path of ['/api/v1/auth/me',health.mode==='team-local'?'/api/v1/development/shops':'/api/v1/shops','/api/v1/localization/receipts','/api/v1/localization/sources','/api/v1/localization/drafts','/api/v1/localization/jobs','/api/v1/tools/short-video/jobs','/api/v1/settings/ai/video'])await get(path);
+ const listing=await(await get('/api/v1/listing/jobs')).json();
+ if(listing.length){assert.ok(listing[0].thumbnailUrl,'missing listing thumbnail URL');const thumbnail=await get(listing[0].thumbnailUrl);assert.ok(thumbnail.headers.get('content-type')?.startsWith('image/jpeg'),'invalid thumbnail content');assert.ok((await thumbnail.arrayBuffer()).byteLength>0,'empty thumbnail');}
  const messages=await(await get('/api/v1/localization/receipts/notifications')).json();
  assert.ok(Number.isSafeInteger(messages.unreadCount)&&messages.unreadCount>=0&&Array.isArray(messages.items),'invalid message response');
  const anonymous=await request('/api/v1/localization/receipts/notifications');assert.equal(anonymous.status,401,'notification identity boundary failed');
