@@ -245,6 +245,15 @@ assets中role=gallery的URL必须同时出现在images中，否则发布前阻�
 | localizationError | string | 可选；旧v1文案错误说明 |
 | note | string | 可选提示，不作为状态判断依据 |
 
+成功接收响应头（v1/v2均适用，响应正文和201状态保持兼容）：
+
+| 响应头 | 类型 | 说明 |
+| --- | --- | --- |
+| X-Localization-Import-Outcome | string | `created`：新增接收记录；`replayed`：相同requestId和内容重放，返回旧记录 |
+| X-Localization-Receipt-Id | string | 本次返回的接收记录ID，与正文id相同 |
+
+发送方应保存响应头、正文id/requestId/createdAt和HTTP追踪编号。201只表示接收成功；`replayed`不会新增接收记录或消息。新的一次提交使用新的requestId；断网或超时后的同一提交保持原requestId以防重复。
+
 ## 4. 查询接收记录
 
 **GET {API_BASE}/api/v1/localization/integration/imports/{id}**

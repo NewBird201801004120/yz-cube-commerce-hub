@@ -21,7 +21,7 @@ test('source-only requests persist without AI or drafts, preserve replay and iso
  const boot=()=>{const engine=new LocalizationEngine(dir);const service={engine,content:{localize:async()=>{aiCalls++;throw Error('must not run');}}} as unknown as LocalizationService;const platform={shops:async()=>{shopReads++;return [];}} as unknown as LocalizationPlatform;return {engine,integration:new LocalizationIntegrationService(service,platform)};};
  try{
   let {engine,integration}=boot();
-  const request=payload(),receipts=await Promise.all(Array.from({length:5},()=>integration.accept(client,request)));
+  const outcomes:string[]=[];const request=payload(),receipts=await Promise.all(Array.from({length:5},()=>integration.accept(client,request,value=>outcomes.push(value))));assert.deepEqual(outcomes.sort(),['created','replayed','replayed','replayed','replayed']);
   assert.equal(new Set(receipts.map(r=>r.id)).size,1);const receipt=receipts[0];
   assert.equal(receipt.status,'received');assert.equal(receipt.draftId,'');assert.equal(engine.listDrafts(owner).length,0);assert.equal(engine.listTasks(owner).length,0);assert.equal(aiCalls,0);assert.equal(shopReads,0);
   assert.equal(engine.listSources(owner).length,1);assert.equal(integration.listForOwner('other@fixture.test').records.length,0);

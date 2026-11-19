@@ -54,3 +54,11 @@
 `POST /api/v1/localization/assets` 接收 `{data: "图片Base64，不含data URL前缀"}`，返回 `{url}`；复用管理员权限，素材按账号隔离。
 
 `POST /api/v1/localization/listing-images/prepare` 接收 `{images:[{jobId:string,slotId:string}]}`，选取同一已完成组图任务中的1～9张图片，返回 `{urls:string[]}`。仅准备本账号私有素材，不修改商品来源或草稿，未完成、越权、重复图片和超过9张均拒绝。编辑态组图选择与文件上传均须点击保存资料才替换当前版本；取消不改已保存图片。
+
+## 市场调研图片修复
+
+新跟卖保留榜单已经提供的公开HTTPS参考图，不抓取未提供的其他图片。旧的空图来源快照不改写；sources响应可附referenceImages候选，列表可显示参考缩略图。编辑区点击使用参考图后才进入预览，仍须保存资料才写入当前草稿，取消保持原草稿不变。创建前失败允许修复图片；已创建商品或结果未明的任务保持只读。
+
+本地团队模式复用中央现有管理员只读drafts及selection origin接口读取候选图，并缓存5分钟，不要求先部署新中央接口。不存在原图时不生成虚假图片。商品事实、价格、库存及发布校验不变。
+
+新增接收响应头X-Localization-Import-Outcome与X-Localization-Receipt-Id；前者为created或replayed，后者对应原接收编号。Nginx安全日志模板只增加这两个允许字段，不记录正文、令牌或原始幂等键。历史日志不能补出过去未记录的接收编号。

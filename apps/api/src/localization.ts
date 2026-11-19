@@ -1,3 +1,4 @@
+import {productReferenceImages,selectionReferenceImages} from './tools/selection/references';
 import {isLocalLocalizationMode} from './localization-development';
 import {adaptMarket,attributeRows} from './localization-adaptation';
 import {supportedLanguages} from './localization-languages';
@@ -27,13 +28,21 @@ export class LocalizationService {
  readonly content:LocalizationContent;
  private adapting=new Map<string,Promise<{draft:ReturnType<LocalizationEngine['getDraft']>;issues:string[]}>>();
  constructor(private platform:LocalizationPlatform,listing:ListingService,@Optional() private team?:TeamShopClient){this.content=new LocalizationContent(listing);}
+ private remoteReferences=new Map<string,{urls:string[];expires:number}>();
  private sourceSync=new Map<string,Promise<ReturnType<LocalizationEngine['listSources']>>>();
+ private sourceView(owner:string,remote:any[]=[]){const references=selectionReferenceImages(this.engine.dir,owner);return this.engine.listSources(owner).map(source=>{const images=references.get(source.id)||remote.find(row=>row.id===source.id||row.sourceSystem===source.sourceSystem&&row.sourceProductId===source.sourceProductId)?.referenceImages;return images?.length?{...source,referenceImages:images}:source;});}
  async sources(ctx:LocalizationContext){
-  if(!this.team)return this.engine.listSources(ctx.owner);
+  if(!this.team)return this.sourceView(ctx.owner);
   const key=ctx.owner+':'+ctx.sessionId,active=this.sourceSync.get(key);if(active)return active;
   const work=(async()=>{
    const rows=await this.team!.reviewRead(ctx.sessionId!,'/sources');
    if(!Array.isArray(rows))throw new BadRequestException('商品来源读取失败，请刷新重试');
+   const missing=rows.filter(row=>row.sourceSystem==='fastmoss-selection'&&!row.images?.length&&!row.referenceImages?.length);
+   if(missing.length){const unresolved=missing.filter(row=>{const cached=this.remoteReferences?.get(ctx.owner+':'+row.sourceProductId);if(cached&&cached.expires>Date.now()){row.referenceImages=cached.urls;return false;}return true;});
+    if(unresolved.length){const drafts=await this.team!.reviewRead(ctx.sessionId!,'/drafts');
+     for(const row of unresolved){const draft=Array.isArray(drafts)?drafts.find(d=>d.sourceId===row.id):undefined;if(!draft)continue;const origin=await this.team!.reviewRead(ctx.sessionId!,'/selection-origin/'+draft.id);const urls=productReferenceImages(origin.product||{});row.referenceImages=urls;this.remoteReferences?.set(ctx.owner+':'+row.sourceProductId,{urls,expires:Date.now()+300000});}
+    }
+   }
    const existing=new Set(this.engine.listSources(ctx.owner).map(s=>s.id));
    for(const raw of rows){
     if(existing.has(raw.id))continue;
@@ -47,7 +56,7 @@ export class LocalizationService {
     if(source.publishing){try{this.engine.attachSourcePublishing(ctx.owner,source.id,source.publishing);}catch(error){if(!(error instanceof BadRequestException))throw error;this.engine.markSourcePublishingIssue(ctx.owner,source.id);}}
     existing.add(source.id);
    }
-   return this.engine.listSources(ctx.owner);
+   return this.sourceView(ctx.owner,rows);
   })().finally(()=>this.sourceSync.delete(key));this.sourceSync.set(key,work);return work;
  }
  publisher(ctx:LocalizationContext){return this.platform.publisher(ctx,async url=>{const match=url.match(/^\/api\/v1\/localization\/assets\/([a-f0-9-]{36})$/);if(!match)throw new BadRequestException('图片地址无效');return this.content.asset(ctx.owner,match[1]).bytes;});}

@@ -11,7 +11,7 @@ test('central source sync retains market research, original timestamps, owner an
  const dir=mkdtempSync(join(tmpdir(),'localization-sync-')),e=new LocalizationEngine(dir);
  const source=new LocalizationEngine(join(dir,'remote')).importSource('remote',{schemaVersion:1,sourceSystem:'fastmoss-selection',sourceProductId:'p',title:'Research product',description:'',parameters:{},images:[],specificationNames:[],variants:[{sku:'s',options:[]}]});
  source.createdAt='2026-11-18T10:00:00.000Z';let reads=0;const service=Object.create(LocalizationService.prototype) as LocalizationService;
- Object.assign(service,{engine:e,sourceSync:new Map(),team:{reviewRead:async(session:string,path:string)=>{assert.equal(session,'session');assert.equal(path,'/sources');reads++;return [source];}}});
+ Object.assign(service,{engine:e,sourceSync:new Map(),team:{reviewRead:async(session:string,path:string)=>{assert.equal(session,'session');if(path==='/drafts')return [];assert.equal(path,'/sources');reads++;return [source];}}});
  try{
   const [a,b]=await Promise.all([service.sources({owner:'local',sessionId:'session'}),service.sources({owner:'local',sessionId:'session'})]);assert.equal(reads,1);assert.deepEqual(a,b);assert.equal(a.length,1);assert.equal(a[0].owner,'local');assert.equal(a[0].createdAt,source.createdAt);assert.equal(a[0].sourceSystem,'fastmoss-selection');
   const d=e.createDraft('local',source.id,{id:'ph',shopId:'1',shopName:'Shop',region:'PH',currency:'PHP',language:'English'});e.updateDraft('local',d.id,{title:'Operator edit'},d.revision);
@@ -27,4 +27,12 @@ test('translation uses saved edits and excludes shop provenance identifiers from
  const service=Object.create(LocalizationService.prototype) as LocalizationService;
  Object.assign(service,{engine,translating:new Map(),content:{localize:async(facts:any,current:any)=>{assert.equal(facts.title,'Edited');assert.equal(facts.description,'Edited description');assert.deepEqual(facts.specificationNames,['Finish']);assert.deepEqual(facts.variants[0].options,['Blue']);assert.deepEqual(facts.parameters,{尺寸:'20 cm'});return {title:'Translated',variants:current.variants};}},adapt:async()=>({draft:engine.getDraft('owner',draft.id),issues:[]})});
  try{const result=await service.localize({owner:'owner'},draft.id);assert.equal(result.title,'Translated');assert.equal(result.variants[0].price,10);assert.equal(engine.getSource('owner',source.id).title,'Original');}finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('local sources recover central research reference images through existing read-only origin routes',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'localization-remote-reference-')),engine=new LocalizationEngine(dir),remote=new LocalizationEngine(join(dir,'remote'));
+ const source=remote.importSource('owner',{schemaVersion:1,sourceSystem:'fastmoss-selection',sourceProductId:'product',title:'Reference',description:'',parameters:{},images:[],specificationNames:[],variants:[{sku:'s',options:[]}]});
+ let origins=0;const service=Object.create(LocalizationService.prototype) as LocalizationService;
+ Object.assign(service,{engine,sourceSync:new Map(),remoteReferences:new Map(),team:{reviewRead:async(_session:string,path:string)=>{if(path==='/sources')return [structuredClone(source)];if(path==='/drafts')return [{id:'central-draft',sourceId:source.id}];assert.equal(path,'/selection-origin/central-draft');origins++;return {product:{image:'https://example.com/reference.png'}};}}});
+ try{const rows=await service.sources({owner:'owner',sessionId:'session'});assert.deepEqual((rows[0] as any).referenceImages,['https://example.com/reference.png']);assert.deepEqual(rows[0].images,[]);assert.deepEqual(engine.getSource('owner',source.id).images,[]);await service.sources({owner:'owner',sessionId:'session'});assert.equal(origins,1);}finally{rmSync(dir,{recursive:true,force:true});}
 });

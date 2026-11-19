@@ -9,6 +9,7 @@ import {assessProducts, type Assessment} from './assessment';
 import {parseWorkbook, type Product} from './fastmoss';
 import {parsePeriod, type Period} from './period';
 import {fingerprint, SelectionStore, stableId} from './store';
+import {productReferenceImages} from './references';
 
 type Upload = Awaited<ReturnType<typeof parseWorkbook>>;
 type Preview = {filename: string; digest: string; createdAt: string; rows: Product[]};
@@ -255,11 +256,16 @@ export class SelectionService {
     const row = origin.product;
     const input: SourceInput = {
       schemaVersion: 1, sourceSystem, sourceProductId: row.productId, title: row.title, description: '',
-      images: [], parameters: row.category ? {'类目': row.category} : {}, specificationNames: [],
+      images: productReferenceImages(row), parameters: row.category ? {'类目': row.category} : {}, specificationNames: [],
       variants: [{sku: 'FM-' + row.productId, options: []}],
     };
     const engine = this.localization.engine;
-    engine.ensureImportedSource(owner, input, origin.sourceId);
+    // Older snapshots intentionally stored no images. Do not rewrite immutable sources
+    // or infer that an empty draft gallery has not been deliberately edited.
+    try { engine.getSource(owner, origin.sourceId); } catch (error) {
+      if (!(error instanceof NotFoundException)) throw error;
+      engine.ensureImportedSource(owner, input, origin.sourceId);
+    }
     return engine.ensureImportedDraft(owner, origin.sourceId, origin.shop, origin.shop.language, origin.draftId);
   }
 
@@ -276,7 +282,8 @@ export class SelectionService {
   origin(owner: string, id: string) {
     const {shop, ...origin} = this.readOrigin(owner, id);
     const draft = this.localization.engine.getDraft(owner, id);
-    return {...origin, revision: draft.revision};
+    return {...origin, revision: draft.revision, referenceImages: productReferenceImages(origin.product),
+      canApplyReferenceImages: !this.localization.engine.listTasks(owner).some(task => task.draftId === id && (task.status !== 'failed' || task.remoteId))};
   }
 
   retryCopy(owner: string, id: string) {

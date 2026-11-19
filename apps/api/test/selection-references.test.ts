@@ -1,0 +1,18 @@
+import 'reflect-metadata';
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,rmSync,writeFileSync,readFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
+import {randomUUID} from 'node:crypto';
+import {LocalizationEngine} from '../src/localization-engine';
+import {SelectionService} from '../src/tools/selection/selection';
+import {SelectionStore} from '../src/tools/selection/store';
+import {productReferenceImages,selectionReferenceImages} from '../src/tools/selection/references';
+const owner='operator@test.com';
+const shop={id:'ph',shopId:'1',shopName:'PH',region:'PH',currency:'PHP',language:'English'};
+const image='https://s.500fd.com/box.webp';
+function fixture(){const dir=mkdtempSync(join(tmpdir(),'selection-refs-'));const engine=new LocalizationEngine(dir);const service=new SelectionService({engine,content:{}} as any,{} as any);const origin={draftId:randomUUID(),sourceId:randomUUID(),datasetId:randomUUID(),product:{productId:'100',title:'Box',image,category:''},period:{type:'day',value:'2026-11-17'},shop,copy:'unconfigured'};new SelectionStore(join(dir,'selection')).write(owner,'origins',origin.draftId,origin);return {dir,engine,service,origin};}
+test('new follow materialization retains supplied reference image; repeated follow keeps edits',()=>{const f=fixture();try{const draft=(f.service as any).materialize(owner,f.origin);assert.deepEqual(draft.images,[image]);assert.deepEqual(f.engine.getSource(owner,draft.sourceId).images,[image]);const edited=f.engine.updateDraft(owner,draft.id,{images:['https://example.com/edited.jpg']},draft.revision);assert.deepEqual((f.service as any).materialize(owner,f.origin),edited);}finally{rmSync(f.dir,{recursive:true,force:true});}});
+test('legacy source and intentionally emptied draft stay immutable; candidate reads are owner scoped and do not write',()=>{const f=fixture();try{f.engine.ensureImportedSource(owner,{schemaVersion:1,sourceSystem:'fastmoss-selection',sourceProductId:'100',title:'Box',description:'',images:[],parameters:{},specificationNames:[],variants:[{sku:'FM-100',options:[]}]},f.origin.sourceId);const draft=(f.service as any).materialize(owner,f.origin);const path=join(f.dir,'sources',f.origin.sourceId+'.json'),before=readFileSync(path,'utf8');assert.deepEqual(draft.images,[]);assert.deepEqual(selectionReferenceImages(f.dir,owner).get(f.origin.sourceId),[image]);assert.equal(selectionReferenceImages(f.dir,'other@test.com').size,0);assert.deepEqual(f.service.origin(owner,draft.id).referenceImages,[image]);assert.equal(readFileSync(path,'utf8'),before);assert.equal(f.engine.getDraft(owner,draft.id).revision,1);assert.equal(f.service.origin(owner,draft.id).canApplyReferenceImages,true);const task={id:randomUUID(),owner,draftId:draft.id,draft,status:'failed',stage:'failed',marker:'test',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};writeFileSync(join(f.dir,'tasks',task.id+'.json'),JSON.stringify(task));assert.equal(f.service.origin(owner,draft.id).canApplyReferenceImages,true);writeFileSync(join(f.dir,'tasks',task.id+'.json'),JSON.stringify({...task,remoteId:'remote-created'}));assert.equal(f.service.origin(owner,draft.id).canApplyReferenceImages,false);}finally{rmSync(f.dir,{recursive:true,force:true});}});
+test('reference adapter rejects credentials, private addresses, internal hosts and non-https URLs',()=>{for(const url of ['http://s.500fd.com/a.jpg','https://127.0.0.1/a.jpg','https://user:pass@s.500fd.com/a.jpg','https://a.internal/a.jpg','/api/v1/localization/assets/'+randomUUID()])assert.deepEqual(productReferenceImages({image:url}),[]);assert.deepEqual(productReferenceImages({image}),[image]);});

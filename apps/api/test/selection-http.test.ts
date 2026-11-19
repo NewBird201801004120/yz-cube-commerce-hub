@@ -126,9 +126,11 @@ test('FastMoss XLSX to an owned, editable Shopee draft with AI unconfigured', as
     assert.equal(draft.shop.currency, 'MYR');
     assert.equal(draft.description, '');
     assert.equal(draft.variants[0].price, null);
-    assert.deepEqual(draft.images, []);
+    assert.deepEqual(draft.images, ['https://s.500fd.com/box.webp']);
     const provenance = await json(await call(root + '/drafts/' + draftId + '/origin', cookie));
     assert.equal(provenance.copy, 'unconfigured');
+    assert.deepEqual(provenance.referenceImages, ['https://s.500fd.com/box.webp']);
+    assert.equal(provenance.canApplyReferenceImages, true);
     assert.equal(provenance.product.image, 'https://s.500fd.com/box.webp');
     const saved = await json(await call(draftPath, cookie, {...draft, title: 'Edited title', specificationNames: ['颜色'], variants: [
       {sku: 'WHITE', options: ['白色'], price: 2, stock: 4}, {sku: 'BLUE', options: ['蓝色'], price: 3, stock: 5},
@@ -143,7 +145,8 @@ test('FastMoss XLSX to an owned, editable Shopee draft with AI unconfigured', as
     assert.equal((await json(await call('/localization/drafts/' + another.draftId, cookie))).shop.currency, 'PHP');
     const preview = await json(await call(draftPath + '/preview', cookie, {}), 201);
     assert.equal(preview.canPublish, false);
-    assert.ok(preview.issues.some((issue: string) => issue.includes('图片')));
+    assert.ok(!preview.issues.includes('添加可用商品图片'));
+    assert.deepEqual(preview.draft.images, ['https://s.500fd.com/box.webp']);
     assert.equal(preview.draft.variants.length, 2);
   } finally {
     await app.close();

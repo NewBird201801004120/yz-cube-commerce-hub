@@ -28,3 +28,5 @@
 @media(max-width:600px){.editorImages>div:first-child{flex-wrap:wrap}.uploadImageGrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.imageDropZone{padding:10px}}
 
 .editBar{margin:24px 0 0;padding-top:20px;border-top:1px solid var(--line);justify-content:flex-end}.editBar>.dirtyNotice{margin-right:auto}
+
+.referenceImages{display:grid;gap:10px;font-size:11px;line-height:1.8;color:var(--muted)}.referenceImages>div{display:flex;gap:8px;overflow:auto}.referenceImages>div>div{flex:none;width:68px;height:68px;border:1px solid var(--line);border-radius:5px;overflow:hidden}

@@ -39,8 +39,9 @@ export class TeamShopClient {
  async localization(id:string,connectionId:string,operation:string,body:unknown={}){if(process.env.LOCALIZATION_LOCAL_MODE==='true')throw new ForbiddenException('本地模拟模式不允许调用中央 Shopee 商品接口');this.displayReads.clear();try{return await this.request(`/localization/shops/${encodeURIComponent(connectionId)}/${encodeURIComponent(operation)}`,this.token(id),body);}finally{this.displayReads.clear();}}
  async reviewRead(id:string,path:string,binary=false):Promise<any>{
   this.token(id);const cookie=this.sessions.get(id)?.webCookie;if(!cookie)throw new UnauthorizedException('请重新登录本地中台，以读取生产完整商品资料');
-  if(!/^\/(sources|receipts\/[a-f0-9-]{36}\/source|drafts\/[a-f0-9-]{36}|assets\/[a-f0-9-]{36})$/.test(path))throw new ForbiddenException('资料读取路径无效');
-  const res=await fetch(this.origin+'/api/v1/localization'+path,{headers:{Cookie:cookie},signal:AbortSignal.timeout(25000),redirect:'error'});
+  if(!/^\/(sources|receipts\/[a-f0-9-]{36}\/source|drafts(?:\/[a-f0-9-]{36})?|selection-origin\/[a-f0-9-]{36}|assets\/[a-f0-9-]{36})$/.test(path))throw new ForbiddenException('资料读取路径无效');
+  const target=path.startsWith('/selection-origin/')?'/api/v1/localization/selection/drafts/'+path.split('/').pop()+'/origin':'/api/v1/localization'+path;
+  const res=await fetch(this.origin+target,{headers:{Cookie:cookie},signal:AbortSignal.timeout(25000),redirect:'error'});
   if(!res.ok){const {HttpException}=await import('@nestjs/common');throw new HttpException('生产商品资料读取失败，请核对账号权限后重试',res.status);}
   if(binary){if(Number(res.headers.get('content-length'))>8*1024*1024)throw new ForbiddenException('生产图片超过8MB');const bytes=Buffer.from(await res.arrayBuffer());if(bytes.length>8*1024*1024)throw new ForbiddenException('生产图片超过8MB');return bytes;}return res.json();
  }

@@ -55,6 +55,7 @@ test('machine imports: scoped authentication, persistent idempotency, independen
   const responses=await Promise.all(Array.from({length:5},()=>call('/imports','POST',payload)));
   for(const response of responses)assert.equal(response.status,201);
   const receipts=await Promise.all(responses.map(r=>r.json())),first=receipts[0];
+  assert.equal(responses.filter(r=>r.headers.get('x-localization-import-outcome')==='created').length,1);assert.equal(responses.filter(r=>r.headers.get('x-localization-import-outcome')==='replayed').length,4);assert.ok(responses.every(r=>r.headers.get('x-localization-receipt-id')===first.id));
   assert.ok(first.sourceId&&first.draftId&&first.id);assert.equal(new Set(receipts.map(r=>r.id)).size,1);
   assert.equal((await settled(first.id)).status,'awaiting_review');assert.equal(localizations,1);
   assert.equal(runtime.engine.listSources(owner).length,1);assert.equal(runtime.engine.listDrafts(owner).length,1);assert.equal(runtime.engine.listTasks(owner).length,0);
@@ -142,6 +143,10 @@ test('machine imports: scoped authentication, persistent idempotency, independen
   assert.equal((await call('/imports','POST',{...completePayload,target:{...completePayload.target,publishing:{...publishing,variants:[{sku:'BOX-W',price:130,stock:0}]}}})).status,409);
   assert.equal((await call('/imports','POST',{...completePayload,requestId:'missing-sku',target:{...payload.target,publishing:{...publishing,variants:[]}}})).status,400);
   await runtime.app.close();runtime=await boot();assert.equal((await (await call('/imports','POST',completePayload)).json()).draftId,completeReceipt.draftId);assert.equal(runtime.engine.getDraft(owner,completeDraft.id).variants[0].price,129);assert.equal(runtime.engine.listTasks(owner).length,0);
+
+  const v2={schemaVersion:2,requestId:'v2-outcome-check',product:payload.product,publishing:{currency:'PHP',variants:payload.target.publishing.variants}};
+  const fresh=await call('/imports','POST',v2);assert.equal(fresh.status,201);assert.equal(fresh.headers.get('x-localization-import-outcome'),'created');const v2Receipt=await fresh.json();assert.equal(fresh.headers.get('x-localization-receipt-id'),v2Receipt.id);
+  const replay=await call('/imports','POST',v2);assert.equal(replay.status,201);assert.equal(replay.headers.get('x-localization-import-outcome'),'replayed');assert.equal(replay.headers.get('x-localization-receipt-id'),v2Receipt.id);assert.equal((await replay.json()).createdAt,v2Receipt.createdAt);
 
  }finally{await runtime.app.close();if(previousConfig===undefined)delete process.env.LOCALIZATION_INTEGRATIONS_FILE;else process.env.LOCALIZATION_INTEGRATIONS_FILE=previousConfig;rmSync(dir,{recursive:true,force:true});}
 });
