@@ -13,7 +13,7 @@ import type {LocalizationSource,LocalizationDraft} from './localization-engine';
 export class LocalizationContent {
  readonly dir=resolve(process.env.LOCALIZATION_DATA_DIR||'.local/localization');
  constructor(private listing:ListingService,private completeText=provider){mkdirSync(join(this.dir,'assets'),{recursive:true,mode:0o700});}
- private planner():ModelConfig{
+ planner():ModelConfig{
   const dir=this.listing.dir,file=join(dir,'config.enc'),keyFile=join(dir,'encryption.key');
   if(!existsSync(file)||!existsSync(keyFile))throw new BadRequestException('请先在 AI API 配置中保存可用于文本的策划模型');
   try{const c=JSON.parse(decrypt(readFileSync(file,'utf8'),readFileSync(keyFile))) as {planner?:ModelConfig};if(!c.planner?.apiKey||!c.planner.model)throw Error();return c.planner;}catch{throw new BadRequestException('策划模型配置不可用，请在 AI API 配置中重新保存');}
@@ -47,6 +47,13 @@ export class LocalizationContent {
   if(detailTexts.some((t,i)=>(t.match(/\d+(?:[.,]\d+)?(?:\s*(?:GHz|MHz|mAh|mm|cm|km|mg|kg|ml|Hz|Ah|GB|TB|°C|m|g|l|V|W|%))?/gi)||[]).some(v=>!String((response.detailTexts as string[])[i]).replace(/\s+/g,'').toLowerCase().includes(v.replace(/\s+/g,'').toLowerCase()))))throw new BadRequestException('生成详情遗漏或改写了真实参数，请手动核对');
   let textIndex=0;const media=draft.media?{...structuredClone(draft.media),detailBlocks:draft.media.detailBlocks.map(b=>b.type==='text'?{...b,text:(response.detailTexts as string[])[textIndex++]}:structuredClone(b))}:undefined;
   return {...(media?{media,imagesReviewed:false}:{}),title:response.title,sellingPoints:response.sellingPoints as string[],description:response.description,specificationNames:response.specificationNames as string[],variants:draft.variants.map((v,i)=>({...v,options:(response.variantOptions as string[][])[i]})),marketConfirmed:false};
+ }
+ async selectionCopy(source:LocalizationSource,draft:LocalizationDraft){
+  // This source has no verified variants. The operator owns all target SKU and media fields.
+  const copySource={...source,title:draft.title||source.title,description:draft.description};
+  const copyDraft={...draft,media:undefined,specificationNames:[],variants:source.variants.map(v=>({...v,price:null,stock:null}))};
+  const {title,sellingPoints,description}=await this.localize(copySource,copyDraft);
+  return {title,sellingPoints,description};
  }
  listingImages(owner:string){return this.listing.list(owner).map(j=>{const full=this.listing.get(j.id,owner);return {jobId:j.id,name:j.name,slots:(full.slots||[]).filter(s=>s.status==='success'&&s.file).map(s=>({id:s.id,title:s.title,url:s.imageUrl!}))};}).filter(j=>j.slots.length);}
  attach(owner:string,jobId:string,slotIds:string[]){

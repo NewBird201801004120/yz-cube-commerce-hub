@@ -1,4 +1,6 @@
 /** Production entry for machine imports and the matching authenticated review workspace. */
+import {SelectionController} from './tools/selection/controller';
+import {SelectionService} from './tools/selection/selection';
 import 'reflect-metadata';
 import {Module,Controller,Get,Put,Post,Body,Param,UseGuards,Catch,HttpException,type ExceptionFilter,type ArgumentsHost,type INestApplication} from '@nestjs/common';
 import {NestFactory} from '@nestjs/core';
@@ -50,7 +52,7 @@ export class LocalizationIntegrationErrors implements ExceptionFilter {
  }
 }
 
-@Module({controllers:[LocalizationIntegrationHealth,LocalizationIntegrationController,LocalizationController,LocalizationReceiptsController,LocalizationReceiptsDevelopmentController,LocalizationAISettings],providers:[Config,Database,Auth,Shops,ShopeeClient,ListingService,LocalizationPlatform,LocalizationService,LocalizationGuard,LocalizationIntegrationGuard,LocalizationIntegrationService,DevelopmentGuard]})
+@Module({controllers:[SelectionController,LocalizationIntegrationHealth,LocalizationIntegrationController,LocalizationController,LocalizationReceiptsController,LocalizationReceiptsDevelopmentController,LocalizationAISettings],providers:[SelectionService,Config,Database,Auth,Shops,ShopeeClient,ListingService,LocalizationPlatform,LocalizationService,LocalizationGuard,LocalizationIntegrationGuard,LocalizationIntegrationService,DevelopmentGuard]})
 export class LocalizationIntegrationModule {}
 
 export function configureIntegrationHttp(app:INestApplication,webOrigin:string){
