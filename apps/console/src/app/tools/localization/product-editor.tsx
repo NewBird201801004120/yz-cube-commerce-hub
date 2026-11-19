@@ -6,6 +6,7 @@ import {errorMessage} from '@/lib/api';
 import {Button} from '@/components/ui/button';
 import type {MarketDraft} from '@/lib/localization';
 import styles from './workspace.module.css';
+import {CopySuggestions} from './copy-suggestions';
 
 type Props={referenceImages?:string[];value:MarketDraft;disabled:boolean;onChange:(next:MarketDraft)=>void;onChooseListing:()=>void;onUploadingChange:(value:boolean)=>void};
 const number=(value:string)=>value===''?null:Number(value);
@@ -28,6 +29,7 @@ export function ProductEditor({value,disabled,onChange,onChooseListing,onUploadi
 
  const patch=(next:Partial<MarketDraft>)=>onChange({...value,...next,marketConfirmed:false,imagesReviewed:false});
  return <fieldset disabled={disabled} className={styles.editor}>
+  <CopySuggestions value={value} referenceImages={referenceImages} disabled={disabled||!!uploading} onApply={patch}/>
   <label><span>商品标题</span><input value={value.title} onChange={e=>patch({title:e.target.value})} required/></label>
   <label><span>商品卖点</span><textarea value={value.sellingPoints.join('\n')} placeholder="每行一条，可留空" onChange={e=>patch({sellingPoints:e.target.value.split('\n')})}/></label>
   <label><span>商品描述</span><textarea className={styles.longDescription} value={value.description} onChange={e=>patch({description:e.target.value})}/></label>

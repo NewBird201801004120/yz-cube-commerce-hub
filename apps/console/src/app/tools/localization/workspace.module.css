@@ -30,3 +30,5 @@
 .editBar{margin:24px 0 0;padding-top:20px;border-top:1px solid var(--line);justify-content:flex-end}.editBar>.dirtyNotice{margin-right:auto}
 
 .referenceImages{display:grid;gap:10px;font-size:11px;line-height:1.8;color:var(--muted)}.referenceImages>div{display:flex;gap:8px;overflow:auto}.referenceImages>div>div{flex:none;width:68px;height:68px;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+
+.pickerImage{align-items:stretch;white-space:normal;width:100%;overflow:hidden;cursor:pointer}.pickerImage>span{min-width:0;width:100%;white-space:normal}.pickerImage input{padding:0;margin:2px 0 0;align-self:flex-start}.pickerImageName{display:block;min-width:0;flex:1;overflow-wrap:anywhere;white-space:normal;line-height:1.6}.pickerOrder>div>span{white-space:normal}.pickerOrder button{flex:none}.pickerJob{min-width:0}.pickerJob>span{flex:none}.pickerJob select{width:100%;text-overflow:ellipsis}
