@@ -5,11 +5,12 @@ import {LocalizationService} from '../../localization';
 import {LocalizationPlatform, type LocalizationContext} from '../../localization-platform';
 import type {LocalizationDraft, LocalizationShop, SourceInput} from '../../localization-engine';
 import type {ModelConfig} from '../../listing-engine';
-import {assessProducts, type Assessment} from './assessment';
+import {assessProducts, type Assessment, type Criteria} from './assessment';
 import {parseWorkbook, type Product} from './fastmoss';
 import {parsePeriod, type Period} from './period';
 import {fingerprint, SelectionStore, stableId} from './store';
 import {productReferenceImages} from './references';
+import {readShopProfile, type ShopProfile} from './shop-profile';
 
 type Upload = Awaited<ReturnType<typeof parseWorkbook>>;
 type Preview = {filename: string; digest: string; createdAt: string; rows: Product[]};
@@ -23,6 +24,9 @@ type Analysis = {
   requirements: string;
   keyword: string;
   category: string;
+  shop?: ShopProfile | null;
+  criteria?: Criteria;
+  excluded?: number;
   productIds: string[];
   status: 'running' | 'complete' | 'partial';
   results: Record<string, Assessment>;
@@ -41,6 +45,7 @@ type Origin = {
 const sourceSystem = 'fastmoss-selection';
 const previewLifetime = 60 * 60 * 1000;
 const batchSize = 8;
+const profileLifetime = 10 * 60 * 1000;
 const pageSize = 20;
 const now = () => new Date().toISOString();
 
@@ -59,6 +64,31 @@ function filterRows(rows: Product[], keyword: string, category: string) {
     && (!needle || [row.title, row.shopName, row.category].some(text => text.toLocaleLowerCase().includes(needle))));
 }
 
+function parseCriteria(raw: unknown): Criteria {
+  if (raw === undefined || raw === null) return {};
+  if (typeof raw !== 'object') throw new BadRequestException('筛选条件无效');
+  const criteria: Criteria = {};
+  for (const key of ['priceMin', 'priceMax', 'minGrowth', 'minCommission'] as const) {
+    const value = (raw as Record<string, unknown>)[key];
+    if (value === undefined || value === null || value === '') continue;
+    if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 1e7 || (key !== 'minGrowth' && value < 0)) {
+      throw new BadRequestException('筛选条件无效');
+    }
+    criteria[key] = value;
+  }
+  if (criteria.priceMin !== undefined && criteria.priceMax !== undefined && criteria.priceMin > criteria.priceMax) {
+    throw new BadRequestException('价格下限不能高于上限');
+  }
+  return criteria;
+}
+
+/** Missing FastMoss values stay in scope: absence is not evidence of failing a rule. */
+export function matchesCriteria(row: Product, {priceMin, priceMax, minGrowth, minCommission}: Criteria) {
+  return (!row.price || ((priceMin === undefined || row.price.max >= priceMin) && (priceMax === undefined || row.price.min <= priceMax)))
+    && (row.growth === null || minGrowth === undefined || row.growth >= minGrowth)
+    && (row.commission === null || minCommission === undefined || row.commission >= minCommission);
+}
+
 function datasetSummary({rows, digest, ...meta}: Dataset) {
   return {...meta, total: rows.length};
 }
@@ -72,6 +102,7 @@ export class SelectionService {
   private readonly store: SelectionStore;
   private readonly analysisActive = new Set<string>();
   private readonly copyActive = new Set<string>();
+  private readonly profiles = new Map<string, {expires: number; value: Promise<ShopProfile>}>();
 
   constructor(private readonly localization: LocalizationService, private readonly platform: LocalizationPlatform) {
     this.store = new SelectionStore(join(localization.engine.dir, 'selection'));
@@ -166,18 +197,39 @@ export class SelectionService {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(job => this.analysisView(owner, job));
   }
 
-  analyze(owner: string, datasetId: string, raw: unknown) {
+  async shopProfile(ctx: LocalizationContext, shopId: string) {
+    const shop = (await this.platform.shops(ctx)).find(s => s.id === shopId && s.status === 'CONNECTED' && s.currency);
+    if (!shop) throw new BadRequestException('请选择已连接的 Shopee 店铺');
+    const key = JSON.stringify([ctx.owner, shopId]);
+    const cached = this.profiles.get(key);
+    if (cached && cached.expires > Date.now()) return cached.value;
+    if (this.profiles.size >= 100) this.profiles.delete(this.profiles.keys().next().value!);
+    const value = readShopProfile(this.platform, ctx, shop);
+    this.profiles.set(key, {expires: Date.now() + profileLifetime, value});
+    value.catch(() => this.profiles.delete(key));
+    return value;
+  }
+
+  async analyze(ctx: LocalizationContext, datasetId: string, raw: unknown) {
+    const owner = ctx.owner;
     if (this.analysisActive.has(owner)) throw new ConflictException('已有选品分析正在运行，请等待完成');
-    const input = raw as {requirements?: unknown; keyword?: unknown; category?: unknown} | null;
+    const input = raw as {requirements?: unknown; keyword?: unknown; category?: unknown; shopId?: unknown; criteria?: unknown} | null;
     const dataset = this.dataset(owner, datasetId);
-    const requirements = requireText(input?.requirements, 2000, '请填写选品要求，最多 2,000 字');
+    const shopId = input?.shopId === undefined || input.shopId === '' ? '' : requireText(input.shopId, 150, '请选择目标店铺');
+    const requirements = shopId && (input?.requirements === undefined || input.requirements === '') ? ''
+      : requireText(input?.requirements, 2000, '请填写选品要求，最多 2,000 字');
     const keyword = optionalText(input?.keyword, 200), category = optionalText(input?.category, 200);
-    const rows = filterRows(dataset.rows, keyword, category);
-    if (!rows.length) throw new BadRequestException('当前筛选范围没有商品');
+    const criteria = parseCriteria(input?.criteria);
+    const scoped = filterRows(dataset.rows, keyword, category);
+    if (!scoped.length) throw new BadRequestException('当前筛选范围没有商品');
+    const rows = scoped.filter(row => matchesCriteria(row, criteria));
+    if (!rows.length) throw new BadRequestException('没有商品满足价格、环比或佣金条件，请放宽条件');
     const config = this.localization.content.planner();
+    const shop = shopId ? await this.shopProfile(ctx, shopId) : null;
+    if (this.analysisActive.has(owner)) throw new ConflictException('已有选品分析正在运行，请等待完成');
     const job: Analysis = {
       id: randomUUID(), datasetId, createdAt: now(), model: config.model, modelKey: modelKey(config),
-      requirements, keyword, category, productIds: rows.map(row => row.productId), status: 'running', results: {},
+      requirements, keyword, category, shop, criteria, excluded: scoped.length - rows.length, productIds: rows.map(row => row.productId), status: 'running', results: {},
     };
     this.runAnalysis(owner, job, dataset, config);
     return this.analysisView(owner, job);
@@ -204,7 +256,7 @@ export class SelectionService {
       let consecutiveFailures = 0;
       for (let index = 0; index < pending.length; index += batchSize) {
         try {
-          const results = await assessProducts(config, job.requirements, dataset.period, pending.slice(index, index + batchSize));
+          const results = await assessProducts(config, {requirements: job.requirements, shop: job.shop, criteria: job.criteria}, dataset.period, pending.slice(index, index + batchSize));
           for (const result of results) job.results[result.productId] = result;
           consecutiveFailures = 0;
         } catch {

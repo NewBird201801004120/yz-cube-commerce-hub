@@ -7,8 +7,8 @@ import {Shell} from '@/components/shell';
 import {Button} from '@/components/ui/button';
 import {api, errorMessage} from '@/lib/api';
 import {localizationApi, marketNames, type MarketShop} from '@/lib/localization';
-import {metric, money, periodLabel, periodNames, referencePrice, selectionApi,
-  type Period, type ResearchAnalysis, type ResearchDataset, type ResearchPreview, type ResearchProduct} from '@/lib/selection';
+import {criteriaText, metric, money, periodLabel, periodNames, referencePrice, selectionApi,
+  type AnalysisRequest, type Criteria, type Period, type ResearchAnalysis, type ShopProfile, type ResearchDataset, type ResearchPreview, type ResearchProduct} from '@/lib/selection';
 import {PeriodPicker} from './period-picker';
 import styles from './selection.module.css';
 
@@ -115,7 +115,7 @@ function ProductDetails({row, onClose}: {row: ResearchProduct; onClose: () => vo
   </Dialog>;
 }
 
-function FollowDialog({row, datasetId, onClose}: {row: ResearchProduct; datasetId: string; onClose: () => void}) {
+function FollowDialog({row, datasetId, defaultShopId, onClose}: {row: ResearchProduct; datasetId: string; defaultShopId?: string; onClose: () => void}) {
   const [shops, setShops] = useState<MarketShop[]>();
   const [shopId, setShopId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -126,10 +126,11 @@ function FollowDialog({row, datasetId, onClose}: {row: ResearchProduct; datasetI
       if (!current) return;
       const eligible = items.filter(shop => shop.status === 'CONNECTED' && shop.currency && shop.language);
       setShops(eligible);
-      if (eligible.length === 1) setShopId(eligible[0].id);
+      const preferred = eligible.find(shop => shop.id === defaultShopId) ?? (eligible.length === 1 ? eligible[0] : undefined);
+      if (preferred) setShopId(preferred.id);
     }).catch(error => { if (current) {setError(errorMessage(error)); setShops([]);} });
     return () => {current = false;};
-  }, []);
+  }, [defaultShopId]);
 
   return <Dialog title="一键跟卖" onClose={() => { if (!busy) onClose(); }}>
     <form className={styles.dialogBody} onSubmit={async event => {
@@ -162,30 +163,89 @@ function FollowDialog({row, datasetId, onClose}: {row: ResearchProduct; datasetI
   </Dialog>;
 }
 
-function AnalysisDialog({count, onClose, onStart}: {
-  count: number; onClose: () => void; onStart: (requirements: string) => Promise<void>;
+type CriteriaForm = Record<keyof Criteria, string>;
+const emptyCriteria: CriteriaForm = {priceMin: '', priceMax: '', minGrowth: '', minCommission: ''};
+const criteriaFields: [keyof Criteria, string][] = [['priceMin', '售价下限 (RM)'], ['priceMax', '售价上限 (RM)'], ['minGrowth', '最低销量环比 (%)'], ['minCommission', '最低佣金比例 (%)']];
+
+function AnalysisDialog({count, previous: latest, onClose, onStart}: {
+  count: number; previous?: ResearchAnalysis; onClose: () => void; onStart: (body: Omit<AnalysisRequest, 'keyword' | 'category'>) => Promise<void>;
 }) {
+  // Freeze the brief source when the dialog opens; later polling must not reset edits.
+  const [previous] = useState(latest);
+  const [shops, setShops] = useState<MarketShop[]>();
+  const [shopId, setShopId] = useState('');
+  const [profile, setProfile] = useState<ShopProfile | null>(null);
+  const [profileError, setProfileError] = useState('');
+  const [criteria, setCriteria] = useState<CriteriaForm>(emptyCriteria);
   const [requirements, setRequirements] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    let current = true;
+    void localizationApi.shops().then(items => {
+      if (!current) return;
+      const eligible = items.filter(shop => shop.status === 'CONNECTED' && shop.currency);
+      setShops(eligible);
+      const remembered = eligible.find(shop => shop.id === previous?.shop?.shopId) ?? (eligible.length === 1 ? eligible[0] : undefined);
+      if (remembered) setShopId(remembered.id);
+    }).catch(error => { if (current) {setProfileError(errorMessage(error)); setShops([]);} });
+    return () => {current = false;};
+  }, [previous?.shop?.shopId]);
+
+  useEffect(() => {
+    setProfile(null);
+    setProfileError('');
+    if (!shopId) return;
+    let current = true;
+    void selectionApi.shopProfile(shopId).then(value => {
+      if (!current) return;
+      setProfile(value);
+    }).catch(error => { if (current) setProfileError(errorMessage(error)); });
+    return () => {current = false;};
+  }, [shopId]);
+
+  const loadingProfile = !!shopId && !profile && !profileError;
+  const ready = !busy && !loadingProfile && (!!shopId || !!requirements.trim());
   return <Dialog title="AI 选品分析" onClose={() => { if (!busy) onClose(); }}>
     <form className={styles.dialogBody} onSubmit={async event => {
       event.preventDefault();
-      if (!requirements.trim() || busy) return;
+      if (!ready) return;
       setBusy(true);
       setError('');
-      try {await onStart(requirements.trim());}
+      const values = Object.fromEntries(Object.entries(criteria).filter(([, value]) => value.trim()).map(([key, value]) => [key, Number(value)]));
+      try {await onStart({requirements: requirements.trim(), ...(shopId ? {shopId} : {}), criteria: values});}
       catch (error) {setError(errorMessage(error)); setBusy(false);}
     }}>
-      <p>本轮将分析当前筛选中的 <strong>{count} 款</strong>商品。</p>
-      <label className={styles.field}><span>选品要求</span>
-        <textarea required maxLength={2000} rows={4} value={requirements} onChange={event => setRequirements(event.target.value)}
-          placeholder="例如：面向马来西亚，售价 RM30 以内，关注销量增长的居家用品"/>
+      <p>当前筛选中有 <strong>{count} 款</strong>商品，先按下方条件过滤，再交给 AI 评分。</p>
+      <label className={styles.field}><span>目标店铺</span>
+        <select value={shopId} onChange={event => setShopId(event.target.value)} disabled={busy || !shops}>
+          <option value="">{shops ? '不指定店铺' : '正在读取已连接店铺…'}</option>
+          {shops?.map(shop => <option key={shop.id} value={shop.id}>{shop.shopName || shop.shopId} · {marketNames[shop.region] || shop.region} · {shop.currency}</option>)}
+        </select>
       </label>
-      {error && <div className="message error" role="alert">{error} <a className={styles.link} href="/settings/ai">打开 AI 设置</a></div>}
+      {loadingProfile && <p role="status">正在根据店铺在售商品生成画像…</p>}
+      {profileError && <p className="message error" role="alert">{profileError}</p>}
+      {profile && <div className={`${styles.reviewSummary} ${styles.profile}`}>
+        <strong>店铺画像 · 采样 {profile.sampled} 款在售商品</strong>
+        <span>主营类目：{profile.categories.map(item => `${item.name} (${item.count})`).join('、') || '-'}</span>
+        {profile.brands.length > 0 && <span>品牌：{profile.brands.join('、')}</span>}
+        {profile.warnings.map(warning => <span key={warning} className="muted">{warning}</span>)}
+      </div>}
+      <div className={styles.criteria}>
+        {criteriaFields.map(([key, label]) => <label key={key} className={styles.field}><span>{label}</span>
+          <input type="number" step="any" min={key === 'minGrowth' ? undefined : 0} value={criteria[key]} disabled={busy}
+            onChange={event => setCriteria(value => ({...value, [key]: event.target.value}))} placeholder="不限"/>
+        </label>)}
+      </div>
+      <label className={styles.field}><span>{shopId ? '补充要求（选填）' : '选品要求'}</span>
+        <textarea required={!shopId} maxLength={2000} rows={3} value={requirements} onChange={event => setRequirements(event.target.value)}
+          placeholder={shopId ? '例如：避开易碎品，优先适合直播展示的商品' : '例如：面向马来西亚，售价 RM30 以内，关注销量增长的居家用品'}/>
+      </label>
+      {error && <div className="message error" role="alert">{error} {/模型|AI|文本/.test(error) && <a className={styles.link} href="/settings/ai">打开 AI 设置</a>}</div>}
       <div className={styles.actions}>
         <Button type="button" variant="outline" disabled={busy} onClick={onClose}>取消</Button>
-        <Button type="submit" disabled={busy || !requirements.trim()}>{busy ? '正在提交…' : '开始分析'}</Button>
+        <Button type="submit" disabled={!ready}>{busy ? '正在提交…' : '开始分析'}</Button>
       </div>
     </form>
   </Dialog>;
@@ -285,14 +345,15 @@ function DatasetTable({dataset}: {dataset: ResearchDataset}) {
       {analysis && <div className={styles.analysisBar}>
         <label className={styles.field}><span>分析记录</span>
           <select value={analysis.id} onChange={event => {setSelectedAnalysisId(event.target.value); setPage(1);}}>
-            {analyses.map(job => <option key={job.id} value={job.id}>{shortDate.format(new Date(job.createdAt))} · {job.requirements.slice(0, 42)}</option>)}
+            {analyses.map(job => <option key={job.id} value={job.id}>{shortDate.format(new Date(job.createdAt))} · {[job.shop?.shopName, job.requirements].filter(Boolean).join(' · ').slice(0, 42) || '按店铺画像'}</option>)}
           </select>
         </label>
         <div className={styles.analysisStatus}>
           <p role="status">{analysis.status === 'running' ? '分析中' : analysis.status === 'complete' ? '已完成' : '分析未完成'} · 已评分 {analysis.scored}/{analysis.total}
-            {analysis.failed > 0 && ` · ${analysis.failed} 款可重试`}</p>
+            {analysis.failed > 0 && ` · ${analysis.failed} 款可重试`}
+            {!!analysis.excluded && ` · ${analysis.excluded} 款因条件（${criteriaText(analysis.criteria)}）未送评`}</p>
           {analysis.status === 'running' && <progress className={styles.progress} aria-label="AI 分析进度" max={analysis.total} value={analysis.scored}/>}
-          <p className="muted">{analysis.model} · {analysis.requirements}</p>
+          <p className="muted">{[analysis.model, analysis.shop && `店铺 ${analysis.shop.shopName}`, analysis.requirements].filter(Boolean).join(' · ')}</p>
         </div>
         {analysis.status === 'partial' && <Button variant="outline" disabled={running || retrying} onClick={async () => {
           setRetrying(true); setAnalysisError('');
@@ -342,12 +403,12 @@ function DatasetTable({dataset}: {dataset: ResearchDataset}) {
         </div>}
       </div>}
     </section>
-    {analysisOpen && <AnalysisDialog count={table?.matched ?? 0} onClose={() => setAnalysisOpen(false)} onStart={async requirements => {
-      const job = await selectionApi.analyze(dataset.id, {keyword: deferredKeyword, category, requirements});
+    {analysisOpen && <AnalysisDialog count={table?.matched ?? 0} previous={analysis} onClose={() => setAnalysisOpen(false)} onStart={async body => {
+      const job = await selectionApi.analyze(dataset.id, {keyword: deferredKeyword, category, ...body});
       accept(job); setSort('score'); setRecommended(false); setPage(1); setAnalysisError(''); setAnalysisOpen(false);
     }}/>}
     {detail && <ProductDetails row={detail} onClose={() => setDetail(null)}/>}
-    {follow && <FollowDialog row={follow} datasetId={dataset.id} onClose={() => setFollow(null)}/>}
+    {follow && <FollowDialog row={follow} datasetId={dataset.id} defaultShopId={analysis?.shop?.shopId} onClose={() => setFollow(null)}/>}
   </>;
 }
 

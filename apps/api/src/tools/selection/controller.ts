@@ -55,7 +55,12 @@ export class SelectionController {
 
   @Post('datasets/:id/analyses')
   analyze(@Req() request: SelectionRequest, @Param('id') id: string, @Body() body: unknown) {
-    return this.selection.analyze(request.localization.owner, id, body);
+    return this.selection.analyze(request.localization, id, body);
+  }
+
+  @Get('shops/:id/profile')
+  shopProfile(@Req() request: SelectionRequest, @Param('id') id: string) {
+    return this.selection.shopProfile(request.localization, id);
   }
 
   @Post('analyses/:id/retry')

@@ -92,6 +92,9 @@
 .dialogBody { display: grid; gap: 16px; }
 .reviewSummary, .issues, .assessment, .followProduct { padding: 12px; border: 1px solid var(--line); border-radius: 7px; background: #faf7f3; }
 .reviewSummary span { color: var(--muted); }
+.profile { display: grid; gap: 4px; }
+.criteria { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 480px) { .criteria { grid-template-columns: 1fr; } }
 .issues summary { cursor: pointer; }
 .issues ul, .assessment ul { padding-inline-start: 20px; margin-block: 8px; list-style: disc; }
 .issues ul { max-height: 120px; overflow: auto; }
