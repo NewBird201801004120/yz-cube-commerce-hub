@@ -113,6 +113,13 @@ test('FastMoss XLSX to an owned, editable Shopee draft with AI unconfigured', as
     const analysisError = await json(await call(dailyPath + '/analyses', cookie, {requirements: '盒子'}), 400);
     assert.match(analysisError.message, /文本/);
     assert.deepEqual(await json(await call(dailyPath + '/analyses', cookie)), []);
+    const strict = await json(await call(dailyPath + '/analyses', cookie, {shopId: 'test-my', criteria: {priceMin: 10}}), 400);
+    assert.match(strict.message, /放宽/);
+    assert.equal((await json(await call(dailyPath + '/analyses', cookie, {requirements: '盒子', criteria: {priceMin: 5, priceMax: 1}}), 400)).message, '价格下限不能高于上限');
+    const profile = await json(await call(root + '/shops/test-ph/profile', cookie));
+    assert.equal(profile.currency, 'PHP');
+    assert.equal(profile.sampled, 0);
+    assert.ok(profile.warnings.some((warning: string) => /马来西亚/.test(warning)));
 
     const destination = {productId, shopId: 'test-my'};
     const concurrent = await Promise.all([call(dailyPath + '/drafts', cookie, destination), call(dailyPath + '/drafts', cookie, destination)]);

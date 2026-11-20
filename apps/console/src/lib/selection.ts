@@ -35,6 +35,12 @@ export type ResearchPreview = {
   errors: {row: number; message: string}[];
   warnings: {row: number; message: string}[];
 };
+export type ShopProfile = {
+  shopId: string; shopName: string; region: string; currency: string; sampled: number;
+  categories: {name: string; count: number}[]; brands: string[]; warnings: string[];
+};
+export type Criteria = {priceMin?: number; priceMax?: number; minGrowth?: number; minCommission?: number};
+export type AnalysisRequest = {keyword: string; category: string; requirements: string; shopId?: string; criteria?: Criteria};
 export type ResearchAnalysis = {
   id: string;
   status: 'running' | 'complete' | 'partial';
@@ -42,6 +48,9 @@ export type ResearchAnalysis = {
   requirements: string;
   keyword: string;
   category: string;
+  shop?: ShopProfile | null;
+  criteria?: Criteria;
+  excluded?: number;
   createdAt: string;
   total: number;
   scored: number;
@@ -66,7 +75,8 @@ export const selectionApi = {
   confirm: (previewId: string, period: Period) => api<ResearchDataset>(root + '/imports', post({previewId, period})),
   products: (id: string, query: URLSearchParams) => api<ProductPage>(dataset(id) + '/products?' + query),
   analyses: (id: string) => api<ResearchAnalysis[]>(dataset(id) + '/analyses'),
-  analyze: (id: string, body: {keyword: string; category: string; requirements: string}) => api<ResearchAnalysis>(dataset(id) + '/analyses', post(body)),
+  shopProfile: (shopId: string) => api<ShopProfile>(root + '/shops/' + encodeURIComponent(shopId) + '/profile'),
+  analyze: (id: string, body: AnalysisRequest) => api<ResearchAnalysis>(dataset(id) + '/analyses', post(body)),
   retry: (id: string) => api<ResearchAnalysis>(root + '/analyses/' + encodeURIComponent(id) + '/retry', post({})),
   follow: (id: string, productId: string, shopId: string) => api<{draftId: string; existing: boolean; reviewPath: string}>(dataset(id) + '/drafts', post({productId, shopId})),
   origin: (id: string) => api<ResearchOrigin>(draft(id) + '/origin'),
@@ -81,6 +91,10 @@ export function referencePrice(price: ResearchProduct['price']) {
   if (!price) return '-';
   return price.min === price.max ? money(price.min) : `${money(price.min)}–${money(price.max)}`;
 }
+
+const criteriaNames: [keyof Criteria, string, string][] = [['priceMin', '售价 ≥ RM', ''], ['priceMax', '售价 ≤ RM', ''], ['minGrowth', '环比 ≥ ', '%'], ['minCommission', '佣金 ≥ ', '%']];
+export const criteriaText = (criteria?: Criteria) =>
+  criteriaNames.filter(([key]) => criteria?.[key] !== undefined).map(([key, label, unit]) => label + criteria![key] + unit).join('，');
 
 export const periodNames: Record<PeriodType, string> = {day: '日榜', week: '周榜', month: '月榜'};
 export function dateAt(value: string) {
