@@ -13,6 +13,10 @@ type VisualObservation={imageId:string;colors:string[];appearance:string[]};
 type IntakeImage={id:string;name:string;data:string;mime:string};
 type Analysis={visualBrief?:string;imageReviewed?:boolean;visualObservations?:VisualObservation[];analyzedImageIds?:string[];recommendedImageIds?:string[];status:'ready'|'cached'|'not_configured'|'skipped'|'failed';facts:Fact[];missing:string[]};
 type AnalysisSelection={factIds:string[];missing:string[];visualBrief?:string;imageReviewed?:boolean;visualObservations:VisualObservation[];analyzedImageIds:string[];recommendedImageIds:string[]};
+/** Human briefing only; the original SKU JSON remains unchanged in analysis facts. */
+export function listingVariantBrief(names:string[],variants:{sku:string;options:string[];stock?:number|null;price?:number|null}[],placeholder=false,currency=''){
+ return variants.map(variant=>placeholder?`来源仅提供商品记录；${variant.sku} 是系统占位标识，不代表真实可售货号或颜色规格。`:[`SKU：${variant.sku}`,...variant.options.map((option,index)=>`${names[index]||`规格${index+1}`}：${option}`),...(!variant.options.length?['单规格']:[]),...(variant.stock===undefined||variant.stock===null?[]:[`库存：${variant.stock}`]),...(variant.price===undefined||variant.price===null?[]:[`最终售价：${variant.price}${currency?' '+currency:''}`])].join('；')).join('\n');
+}
 const missingFields=['材质','尺寸','功能','适用场景','包装清单','品牌'];
 export function parseListingSourceAnalysis(raw:string,facts:Fact[],imageIds:string[]=[]):AnalysisSelection{
  let value:any;try{value=JSON.parse(raw);}catch{throw new BadRequestException('商品分析结果格式无效，请重试');}
@@ -106,9 +110,10 @@ export class ListingSourceIntakeService{
   const noteFacts=selected.filter(f=>!f.key.startsWith('图文详情参考文字'));
   const priority=(fact:Fact)=>fact.key==='SKU与规格'?0:fact.key==='规格名称'?1:fact.key==='商品名称'?2:fact.key==='商品说明'?4:3;
   noteFacts.sort((a,b)=>priority(a)-priority(b));
-  const fullNotes=noteFacts.map(f=>`${f.key}：${f.value}`).join('\n\n'),notesIncomplete=fullNotes.length>10000;
+  const readable=(fact:Fact)=>fact.key==='SKU与规格'?listingVariantBrief(value.specificationNames,value.variants,source.sourceSystem==='fastmoss-selection'&&!value.specificationNames.length&&value.variants.length===1&&value.variants[0].sku==='FM-'+source.sourceProductId,draft?.shop.currency):fact.value;
+  const fullNotes=noteFacts.map(f=>`${f.key}：${readable(f)}`).join('\n\n'),notesIncomplete=fullNotes.length>10000;
   const notes=fullNotes.slice(0,10000);
-  if(notesIncomplete){const skuLength=noteFacts.filter(f=>f.key==='SKU与规格'||f.key==='规格名称').map(f=>`${f.key}：${f.value}`).join('\n\n').length;warnings.push(skuLength>10000?'SKU与规格资料超过组图说明长度，说明中未包含全部规格；完整规格仍保留在商品规格表，请缩小本次组图范围。':'组图说明已优先保留SKU和结构化参数，长说明或后续参数超过长度限制，未全部带入，请核对。');}
+  if(notesIncomplete){const skuLength=noteFacts.filter(f=>f.key==='SKU与规格'||f.key==='规格名称').map(f=>`${f.key}：${readable(f)}`).join('\n\n').length;warnings.push(skuLength>10000?'SKU与规格资料超过组图说明长度，说明中未包含全部规格；完整规格仍保留在商品规格表，请缩小本次组图范围。':'组图说明已优先保留SKU和结构化参数，长说明或后续参数超过长度限制，未全部带入，请核对。');}
   const originEvidence=(draft?'draft:':'source:')+(draft?.id??source.id);
   const variants=value.variants.map(variant=>({...variant,sourceId:originEvidence,placeholder:source.sourceSystem==='fastmoss-selection'&&!value.specificationNames.length&&variant.sku==='FM-'+source.sourceProductId}));
   return {specificationNames:[...value.specificationNames],variants,visualObservations:analysis.visualObservations??[],coverage,supplements,sourceId:id,...(draft?{draftId:draft.id}:{}),name,sku,brand:brand.slice(0,100),notes,notesIncomplete,visualBrief:analysis.imageReviewed?analysis.visualBrief||'':'',primary,market:draft?.shop.region||source.parameters['来源国家']||'',language:draft?.language||'',analysis,warnings};
